@@ -1,6 +1,8 @@
+use std::convert::TryFrom;
 use std::fmt::{self, Display};
 use std::ops::Add;
 
+#[derive(Debug, PartialEq)]
 pub struct MacAddr {
     bytes: [u8; 6],
 }
@@ -28,6 +30,31 @@ impl Display for MacAddr {
     }
 }
 
+impl TryFrom<&str> for MacAddr {
+    type Error = ();
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        if value.len() != 17 {
+            return Err(());
+        }
+        let mut v = vec![];
+        for chunk in value.split(":") {
+            if chunk.len() != 2 {
+                return Err(());
+            }
+            if let Ok(n) = u8::from_str_radix(chunk, 16) {
+                v.push(n);
+            } else {
+                return Err(());
+            }
+        }
+        if v.len() != 6 {
+            return Err(());
+        }
+        Ok(MacAddr::new(v[0], v[1], v[2], v[3], v[4], v[5]))
+    }
+}
+
 impl<N> Add<N> for MacAddr
 where
     N: Into<u64>,
@@ -51,6 +78,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::MacAddr;
+    use std::convert::TryFrom;
 
     #[test]
     fn mac_addr_display() {
@@ -71,5 +99,27 @@ mod tests {
 
         let mac3 = MacAddr::new(0xff, 0xff, 0xff, 0xff, 0xff, 0xff);
         assert_eq!(format!("{}", mac3 + 1u8), "00:00:00:00:00:00"); // overflow
+    }
+
+    #[test]
+    fn mac_addr_try_from() {
+        assert_eq!(
+            MacAddr::try_from("00:11:22:33:44:55"),
+            Ok(MacAddr::new(0, 0x11, 0x22, 0x33, 0x44, 0x55))
+        );
+
+        assert_eq!(
+            MacAddr::try_from("aa:bb:cc:dd:ee:ff"),
+            Ok(MacAddr::new(0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff))
+        );
+    }
+
+    #[test]
+    fn mac_addr_try_from_err() {
+        assert_eq!(MacAddr::try_from("00:11:22:33:44:5"), Err(()));
+
+        assert_eq!(MacAddr::try_from("aa:bb:cc:dd:ee:0ff"), Err(()));
+
+        assert_eq!(MacAddr::try_from("aa:bb:cc:dd:ee:fg"), Err(()));
     }
 }
