@@ -3,6 +3,8 @@ use std::convert::TryFrom;
 use std::fmt::{self, Display};
 use std::ops::Add;
 
+const MAC_MAX: u64 = 0xffffffffffffu64;
+
 #[derive(Debug, PartialEq, Eq)]
 pub struct MacAddr {
     bytes: [u8; 6],
@@ -81,17 +83,26 @@ where
     type Output = Self;
 
     fn add(self, other: N) -> Self {
-        let mut n: u64 = 0;
-        for b in &self.bytes {
-            n = (n << 8u64) + *b as u64;
-        }
-        let sum: u64 = n + other.into() & 0xffffffffffffu64;
-        let mut bytes: [u8; 6] = [0; 6];
-        for i in 0..6 {
-            bytes[i] = (dbg!(sum >> ((5 - i) * 8) & 0xff)) as u8;
-        }
+        let n = bytes_to_u64(&self.bytes);
+        let bytes = u64_to_bytes(n + other.into() & MAC_MAX);
         MacAddr { bytes }
     }
+}
+
+fn bytes_to_u64(bytes: &[u8; 6]) -> u64 {
+    let mut n: u64 = 0;
+    for b in bytes {
+        n = (n << 8u64) + *b as u64;
+    }
+    n
+}
+
+fn u64_to_bytes(n: u64) -> [u8; 6] {
+    let mut bytes: [u8; 6] = [0; 6];
+    for i in 0..6 {
+        bytes[i] = (n >> ((5 - i) * 8) & 0xff) as u8;
+    }
+    bytes
 }
 
 #[cfg(test)]
