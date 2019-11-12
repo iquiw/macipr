@@ -1,8 +1,9 @@
+use std::cmp::Ordering;
 use std::convert::TryFrom;
 use std::fmt::{self, Display};
 use std::ops::Add;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct MacAddr {
     bytes: [u8; 6],
 }
@@ -27,6 +28,24 @@ impl Display for MacAddr {
             self.bytes[4],
             self.bytes[5]
         )
+    }
+}
+
+impl Ord for MacAddr {
+    fn cmp(&self, other: &Self) -> Ordering {
+        for i in 0..6 {
+            let result = self.bytes[i].cmp(&other.bytes[i]);
+            if result != Ordering::Equal {
+                return result;
+            }
+        }
+        Ordering::Equal
+    }
+}
+
+impl PartialOrd for MacAddr {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
     }
 }
 
@@ -87,6 +106,21 @@ mod tests {
 
         let mac2 = MacAddr::new(0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff);
         assert_eq!(format!("{}", mac2), "aa:bb:cc:dd:ee:ff");
+    }
+
+    #[test]
+    fn mac_addr_ordering() {
+        let mac1 = MacAddr::new(0, 1, 2, 3, 4, 5);
+        let mac2 = MacAddr::new(0, 1, 2, 3, 4, 6);
+        assert!(mac1 < mac2);
+        assert!(mac2 > mac1);
+
+        assert!(MacAddr::new(1, 0, 0, 0, 0, 0) > MacAddr::new(0, 0xff, 0xff, 0xff, 0xff, 0xff));
+        assert!(MacAddr::new(0, 1, 0, 0, 0, 0) > MacAddr::new(0, 0, 0xff, 0xff, 0xff, 0xff));
+        assert!(MacAddr::new(0, 0, 1, 0, 0, 0) > MacAddr::new(0, 0, 0, 0xff, 0xff, 0xff));
+        assert!(MacAddr::new(0, 0, 0, 1, 0, 0) > MacAddr::new(0, 0, 0, 0, 0xff, 0xff));
+        assert!(MacAddr::new(0, 0, 0, 0, 1, 0) > MacAddr::new(0, 0, 0, 0, 0, 0xff));
+        assert!(MacAddr::new(0, 0, 0, 0, 0, 1) > MacAddr::new(0, 0, 0, 0, 0, 0));
     }
 
     #[test]
