@@ -66,10 +66,6 @@ fn parse_format(fmt_str: &str) -> Result<Vec<Format>, FormatError> {
     let mut buf = String::new();
     let mut state = FormatState::Normal;
     for c in fmt_str.chars() {
-        if c == '%' {
-            state = FormatState::Percent;
-            continue;
-        }
         if state == FormatState::Percent {
             state = FormatState::Normal;
             match c {
@@ -88,6 +84,10 @@ fn parse_format(fmt_str: &str) -> Result<Vec<Format>, FormatError> {
                 }
             }
         } else {
+            if c == '%' {
+                state = FormatState::Percent;
+                continue;
+            }
             buf.push(c);
         }
     }
@@ -112,6 +112,14 @@ mod tests {
         assert_eq!(
             parse_format("foo bar"),
             Ok(vec![Format::RawString("foo bar".to_string())])
+        );
+    }
+
+    #[test]
+    fn parse_format_percent_escape() {
+        assert_eq!(
+            parse_format("foo %% bar"),
+            Ok(vec![Format::RawString("foo % bar".to_string())])
         );
     }
 
