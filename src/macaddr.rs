@@ -55,6 +55,12 @@ impl TryFrom<&str> for MacAddr {
     type Error = ();
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
+        if let Ok(n) = u64::from_str_radix(value, 10) {
+            if n <= MAC_MAX {
+                let bytes = u64_to_bytes(n);
+                return Ok(MacAddr { bytes });
+            }
+        }
         if value.len() != 17 {
             return Err(());
         }
@@ -160,11 +166,33 @@ mod tests {
     }
 
     #[test]
+    fn mac_addr_try_from_number() {
+        assert_eq!(MacAddr::try_from("0"), Ok(MacAddr::new(0, 0, 0, 0, 0, 0)));
+
+        assert_eq!(
+            MacAddr::try_from("100000"),
+            Ok(MacAddr::new(0, 0, 0, 0x01, 0x86, 0xa0))
+        );
+
+        assert_eq!(
+            MacAddr::try_from("281474976710655"), // 0xffffffffffff
+            Ok(MacAddr::new(0xff, 0xff, 0xff, 0xff, 0xff, 0xff))
+        );
+    }
+
+    #[test]
     fn mac_addr_try_from_err() {
         assert_eq!(MacAddr::try_from("00:11:22:33:44:5"), Err(()));
 
         assert_eq!(MacAddr::try_from("aa:bb:cc:dd:ee:0ff"), Err(()));
 
         assert_eq!(MacAddr::try_from("aa:bb:cc:dd:ee:fg"), Err(()));
+
+        assert_eq!(
+            MacAddr::try_from("281474976710656"), // 0xffffffffffff + 1
+            Err(())
+        );
+
+        assert_eq!(MacAddr::try_from("aabbccddeeff"), Err(()));
     }
 }
