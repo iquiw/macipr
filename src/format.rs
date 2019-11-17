@@ -1,6 +1,7 @@
 use std::convert::TryFrom;
 use std::error::Error;
 use std::fmt::{self, Display};
+use std::io::Write;
 
 use crate::MacAddr;
 
@@ -29,10 +30,18 @@ impl Display for FormatError {
 
 impl Error for FormatError {}
 
-pub fn format_macipr(fmt_str: &str, args: &Vec<String>) -> Result<String, FormatError> {
+pub fn format_macipr<W>(
+    writer: &mut W,
+    fmt_str: &str,
+    args: &Vec<String>,
+) -> Result<(), FormatError>
+where
+    W: Write,
+{
     let mut result = String::new();
     let mut offset = 0;
-    for fmt in parse_format(fmt_str)? {
+    let fmts = parse_format(fmt_str)?;
+    for fmt in &fmts {
         match fmt {
             Format::RawString(s) => result.push_str(&s),
             Format::MacAddr => {
@@ -58,7 +67,11 @@ pub fn format_macipr(fmt_str: &str, args: &Vec<String>) -> Result<String, Format
             msg: "Unexpected argument".to_string(),
         });
     }
-    Ok(result)
+    result.push('\n');
+    writer.write(result.as_bytes()).map_err(|e| FormatError {
+        msg: format!("{}", e),
+    })?;
+    Ok(())
 }
 
 fn parse_format(fmt_str: &str) -> Result<Vec<Format>, FormatError> {
@@ -138,12 +151,18 @@ mod tests {
         );
     }
 
+    fn fmt_macipr_str(fmt_str: &str, args: &Vec<String>) -> Result<String, FormatError> {
+        let mut v = vec![];
+        format_macipr(&mut v, fmt_str, args)?;
+        Ok(String::from_utf8_lossy(&v).to_string())
+    }
+
     #[test]
     fn format_macaddr_mac_only() {
         let args = vec!["00:01:02:03:04:05".to_string()];
         assert_eq!(
-            format_macipr("%m", &args),
-            Ok("00:01:02:03:04:05".to_string())
+            fmt_macipr_str("%m", &args),
+            Ok("00:01:02:03:04:05\n".to_string())
         );
     }
 
@@ -151,18 +170,18 @@ mod tests {
     fn format_macaddr_mac_and_string() {
         let args = vec!["00:01:02:03:04:05".to_string()];
         assert_eq!(
-            format_macipr("prefix %m", &args),
-            Ok("prefix 00:01:02:03:04:05".to_string())
+            fmt_macipr_str("prefix %m", &args),
+            Ok("prefix 00:01:02:03:04:05\n".to_string())
         );
 
         assert_eq!(
-            format_macipr("%m postfix", &args),
-            Ok("00:01:02:03:04:05 postfix".to_string())
+            fmt_macipr_str("%m postfix", &args),
+            Ok("00:01:02:03:04:05 postfix\n".to_string())
         );
 
         assert_eq!(
-            format_macipr("prefix %m postfix", &args),
-            Ok("prefix 00:01:02:03:04:05 postfix".to_string())
+            fmt_macipr_str("prefix %m postfix", &args),
+            Ok("prefix 00:01:02:03:04:05 postfix\n".to_string())
         );
     }
 
@@ -174,8 +193,8 @@ mod tests {
             "00:00:00:00:00:03".to_string(),
         ];
         assert_eq!(
-            format_macipr("MAC %m, %m and %m", &args),
-            Ok("MAC 00:00:00:00:00:01, 00:00:00:00:00:02 and 00:00:00:00:00:03".to_string())
+            fmt_macipr_str("MAC %m, %m and %m", &args),
+            Ok("MAC 00:00:00:00:00:01, 00:00:00:00:00:02 and 00:00:00:00:00:03\n".to_string())
         );
     }
 
@@ -183,7 +202,7 @@ mod tests {
     fn format_macaddr_invalid_mac_err() {
         let args = vec!["00:00:00-00:00:01".to_string()];
         assert_eq!(
-            format_macipr("This is %m", &args),
+            fmt_macipr_str("This is %m", &args),
             Err(FormatError {
                 msg: "Invalid MAC address".to_string()
             })
@@ -194,14 +213,14 @@ mod tests {
     fn format_macaddr_insufficient_arg_err() {
         let args = vec!["00:00:00:00:00:01".to_string()];
         assert_eq!(
-            format_macipr("This is %m", &vec![]),
+            fmt_macipr_str("This is %m", &vec![]),
             Err(FormatError {
                 msg: "Insufficient number of arguments".to_string()
             })
         );
 
         assert_eq!(
-            format_macipr("This is %m%m", &args),
+            fmt_macipr_str("This is %m%m", &args),
             Err(FormatError {
                 msg: "Insufficient number of arguments".to_string()
             })
@@ -212,7 +231,7 @@ mod tests {
     fn format_macaddr_unexpected_arg_err() {
         let args = vec!["00:00:00:00:00:01".to_string()];
         assert_eq!(
-            format_macipr("This is it", &args),
+            fmt_macipr_str("This is it", &args),
             Err(FormatError {
                 msg: "Unexpected argument".to_string()
             })

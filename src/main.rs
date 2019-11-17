@@ -1,5 +1,6 @@
 use std::env::args;
 use std::error::Error;
+use std::io::{stdout, BufWriter};
 use std::process::exit;
 
 use macipr::format_macipr;
@@ -21,6 +22,7 @@ where
             return Err("usage: macipr FORMAT [MAC..]")?;
         }
     };
-    let result = format_macipr(&format, &args.collect()).map_err(|e| format!("macipr: {}", e))?;
-    Ok(println!("{}", result))
+    let mut writer = BufWriter::new(stdout());
+    Ok(format_macipr(&mut writer, &format, &args.collect())
+        .map_err(|e| format!("macipr: {}", e))?)
 }
