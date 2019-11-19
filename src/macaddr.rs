@@ -1,11 +1,11 @@
 use std::cmp::Ordering;
 use std::convert::TryFrom;
 use std::fmt::{self, Display};
-use std::ops::Add;
+use std::ops::{Add, Sub};
 
 const MAC_MAX: u64 = 0xffffffffffffu64;
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Copy, Clone)]
 pub struct MacAddr {
     bytes: [u8; 6],
 }
@@ -88,10 +88,24 @@ where
 {
     type Output = Self;
 
-    fn add(self, other: N) -> Self {
+    fn add(self, rhs: N) -> Self {
         let n = bytes_to_u64(&self.bytes);
-        let bytes = u64_to_bytes(n + other.into() & MAC_MAX);
+        let bytes = u64_to_bytes(n + rhs.into() & MAC_MAX);
         MacAddr { bytes }
+    }
+}
+
+impl Sub<MacAddr> for MacAddr {
+    type Output = i64;
+
+    fn sub(self, rhs: MacAddr) -> Self::Output {
+        let n1 = bytes_to_u64(&self.bytes);
+        let n2 = bytes_to_u64(&rhs.bytes);
+        if n1 > n2 {
+            (n1 - n2) as i64
+        } else {
+            -((n2 - n1) as i64)
+        }
     }
 }
 
@@ -114,6 +128,7 @@ fn u64_to_bytes(n: u64) -> [u8; 6] {
 #[cfg(test)]
 mod tests {
     use super::MacAddr;
+    use crate::macaddr::MAC_MAX;
     use std::convert::TryFrom;
 
     #[test]
@@ -150,6 +165,20 @@ mod tests {
 
         let mac3 = MacAddr::new(0xff, 0xff, 0xff, 0xff, 0xff, 0xff);
         assert_eq!(format!("{}", mac3 + 1u8), "00:00:00:00:00:00"); // overflow
+    }
+
+    #[test]
+    fn mac_addr_sub() {
+        let mac0 = MacAddr::new(0, 0, 0, 0, 0, 0);
+        let mac1 = MacAddr::new(1, 1, 1, 1, 1, 1);
+        let mac1num = 1103823438081;
+        let mac2 = MacAddr::new(0xff, 0xff, 0xff, 0xff, 0xff, 0xff);
+
+        assert_eq!(mac1 - mac1, 0);
+        assert_eq!(mac1 - mac0, mac1num);
+        assert_eq!(mac0 - mac1, -mac1num);
+        assert_eq!(mac2 - mac0, MAC_MAX as i64);
+        assert_eq!(mac0 - mac2, -(MAC_MAX as i64));
     }
 
     #[test]
