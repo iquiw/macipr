@@ -3,7 +3,8 @@ use std::error::Error;
 use std::fmt::{self, Display};
 use std::io::Write;
 
-use crate::{AddrRange, AddrRanges, MacAddr};
+use crate::addr_range::{AddrRange, AddrRanges};
+use crate::macaddr::MacAddr;
 
 #[derive(Debug, PartialEq)]
 pub enum Format {
