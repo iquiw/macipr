@@ -3,7 +3,7 @@ use std::error::Error;
 use std::fmt::{self, Display};
 use std::io::Write;
 
-use crate::MacAddr;
+use crate::{AddrRange, AddrRanges, MacAddr};
 
 #[derive(Debug, PartialEq)]
 pub enum Format {
@@ -38,28 +38,25 @@ pub fn format_macipr<W>(
 where
     W: Write,
 {
-    let mut result = String::new();
+    let mut ranges = AddrRanges::<MacAddr>::new();
     let mut offset = 0;
     let fmts = parse_format(fmt_str)?;
     for fmt in &fmts {
-        match fmt {
-            Format::RawString(s) => result.push_str(&s),
-            Format::MacAddr => {
-                if let Some(s) = args.get(offset) {
-                    if let Ok(mac) = MacAddr::try_from(s.as_ref()) {
-                        result.push_str(&format!("{}", mac));
-                    } else {
-                        return Err(FormatError {
-                            msg: "Invalid MAC address".to_string(),
-                        });
-                    }
+        if *fmt == Format::MacAddr {
+            if let Some(s) = args.get(offset) {
+                if let Ok(range) = AddrRange::<MacAddr>::try_from(s.as_ref()) {
+                    ranges.push(range);
                 } else {
                     return Err(FormatError {
-                        msg: "Insufficient number of arguments".to_string(),
+                        msg: "Invalid MAC address".to_string(),
                     });
                 }
-                offset += 1;
+            } else {
+                return Err(FormatError {
+                    msg: "Insufficient number of arguments".to_string(),
+                });
             }
+            offset += 1;
         }
     }
     if offset != args.len() {
@@ -67,10 +64,21 @@ where
             msg: "Unexpected argument".to_string(),
         });
     }
-    result.push('\n');
-    writer.write(result.as_bytes()).map_err(|e| FormatError {
-        msg: format!("{}", e),
-    })?;
+    for v in ranges {
+        let mut iter = v.iter();
+        for fmt in &fmts {
+            match fmt {
+                Format::RawString(s) => write!(writer, "{}", s),
+                Format::MacAddr => write!(writer, "{}", iter.next().unwrap()),
+            }
+            .map_err(|e| FormatError {
+                msg: format!("{}", e),
+            })?;
+        }
+        write!(writer, "\n").map_err(|e| FormatError {
+            msg: format!("{}", e),
+        })?;
+    }
     Ok(())
 }
 
@@ -195,6 +203,34 @@ mod tests {
         assert_eq!(
             fmt_macipr_str("MAC %m, %m and %m", &args),
             Ok("MAC 00:00:00:00:00:01, 00:00:00:00:00:02 and 00:00:00:00:00:03\n".to_string())
+        );
+    }
+
+    #[test]
+    fn format_macaddr_range_one_mac() {
+        let args = vec!["1-3".to_string()];
+        assert_eq!(
+            fmt_macipr_str("MAC=%m", &args),
+            Ok("MAC=00:00:00:00:00:01\nMAC=00:00:00:00:00:02\nMAC=00:00:00:00:00:03\n".to_string())
+        );
+    }
+
+    #[test]
+    fn format_macaddr_range_multiple_macs() {
+        let args = vec![
+            "1-5".to_string(),
+            "ff:ff:ff:ff:ff:00-ff:ff:ff:ff:ff:03".to_string(),
+        ];
+        assert_eq!(
+            fmt_macipr_str("%m, %m", &args),
+            Ok("\
+00:00:00:00:00:01, ff:ff:ff:ff:ff:00
+00:00:00:00:00:02, ff:ff:ff:ff:ff:01
+00:00:00:00:00:03, ff:ff:ff:ff:ff:02
+00:00:00:00:00:04, ff:ff:ff:ff:ff:03
+00:00:00:00:00:05, ff:ff:ff:ff:ff:00
+"
+            .to_string())
         );
     }
 

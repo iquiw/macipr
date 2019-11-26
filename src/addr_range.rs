@@ -41,11 +41,21 @@ where
     }
 }
 
-struct AddrRanges<T> {
+pub struct AddrRanges<T> {
     ranges: Vec<AddrRange<T>>,
 }
 
-struct AddrRangesIter<T> {
+impl<T> AddrRanges<T> {
+    pub fn new() -> Self {
+        AddrRanges::<T> { ranges: Vec::new() }
+    }
+
+    pub fn push(&mut self, range: AddrRange<T>) {
+        self.ranges.push(range);
+    }
+}
+
+pub struct AddrRangesIter<T> {
     ranges: Vec<AddrRange<T>>,
     offset: i64,
     done: Vec<bool>,
@@ -157,10 +167,9 @@ mod tests {
     #[test]
     fn addr_range_ranges_iter_one_element() {
         let range = AddrRange::<MacAddr>::try_from("1-3").unwrap();
-        let mut ranges_iter = AddrRanges::<MacAddr> {
-            ranges: vec![range],
-        }
-        .into_iter();
+        let mut ranges = AddrRanges::<MacAddr>::new();
+        ranges.push(range);
+        let mut ranges_iter = ranges.into_iter();
         assert_eq!(
             ranges_iter.next(),
             Some(vec![MacAddr::new(0, 0, 0, 0, 0, 1)])
@@ -178,13 +187,11 @@ mod tests {
 
     #[test]
     fn addr_range_ranges_iter_3_elements() {
-        let range1 = AddrRange::<MacAddr>::try_from("1-3").unwrap();
-        let range2 = AddrRange::<MacAddr>::try_from("2-6").unwrap();
-        let range3 = AddrRange::<MacAddr>::try_from("7-7").unwrap();
-        let mut ranges_iter = AddrRanges::<MacAddr> {
-            ranges: vec![range1, range2, range3],
-        }
-        .into_iter();
+        let mut ranges = AddrRanges::<MacAddr>::new();
+        ranges.push(AddrRange::<MacAddr>::try_from("1-3").unwrap());
+        ranges.push(AddrRange::<MacAddr>::try_from("2-6").unwrap());
+        ranges.push(AddrRange::<MacAddr>::try_from("7-7").unwrap());
+        let mut ranges_iter = ranges.into_iter();
         assert_eq!(
             ranges_iter.next(),
             Some(vec![
