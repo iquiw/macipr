@@ -1,5 +1,7 @@
 use std::convert::TryFrom;
-use std::ops::{Add, Range, Sub};
+use std::ops::{Add, Range};
+
+use crate::bundled_iter::{IterBundle, ResettableIterator};
 
 #[derive(Debug, PartialEq)]
 pub struct AddrRange<T> {
@@ -41,67 +43,53 @@ where
     }
 }
 
-pub struct AddrRanges<T> {
-    ranges: Vec<AddrRange<T>>,
+pub struct AddrRangeIter<T> {
+    range: AddrRange<T>,
+    offset: u64,
 }
 
-impl<T> AddrRanges<T> {
-    pub fn new() -> Self {
-        AddrRanges::<T> { ranges: Vec::new() }
-    }
-
-    pub fn push(&mut self, range: AddrRange<T>) {
-        self.ranges.push(range);
-    }
-}
-
-pub struct AddrRangesIter<T> {
-    ranges: Vec<AddrRange<T>>,
-    offset: i64,
-    done: Vec<bool>,
-}
-
-impl<T> IntoIterator for AddrRanges<T>
+impl<T> IntoIterator for AddrRange<T>
 where
-    T: Copy + Ord + Add<u64, Output = T> + Sub<T, Output = i64>,
+    T: Copy + Ord + Add<u64, Output = T>,
 {
-    type Item = Vec<T>;
-    type IntoIter = AddrRangesIter<T>;
+    type Item = T;
+    type IntoIter = AddrRangeIter<T>;
 
     fn into_iter(self) -> Self::IntoIter {
-        let done = self.ranges.iter().map(|_| false).collect();
-        AddrRangesIter::<T> {
-            ranges: self.ranges,
+        AddrRangeIter {
+            range: self,
             offset: 0,
-            done: done,
         }
     }
 }
 
-impl<T> Iterator for AddrRangesIter<T>
+impl<T> Iterator for AddrRangeIter<T>
 where
-    T: Copy + Ord + Add<u64, Output = T> + Sub<T, Output = i64>,
+    T: Copy + Ord + Add<u64, Output = T>,
 {
-    type Item = Vec<T>;
+    type Item = T;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.done.iter().all(|b| *b) {
-            None
+        let n = self.range.start + self.offset;
+        self.offset += 1;
+        if n <= self.range.end {
+            Some(n)
         } else {
-            let mut v = vec![];
-            for range in &self.ranges {
-                let size = range.end - range.start + 1;
-                let offset = (self.offset % size) as u64;
-                if size - 1 <= self.offset {
-                    self.done[v.len()] = true;
-                }
-                v.push(range.start + offset);
-            }
-            self.offset += 1;
-            Some(v)
+            None
         }
     }
 }
+
+impl<T> ResettableIterator for AddrRangeIter<T>
+where
+    T: Copy + Ord + Add<u64, Output = T>,
+{
+    fn reset(&mut self) {
+        self.offset = 0;
+    }
+}
+
+pub type AddrRanges<T> = IterBundle<AddrRangeIter<T>>;
 
 #[cfg(test)]
 mod tests {

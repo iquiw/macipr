@@ -1,24 +1,30 @@
-trait ResettableIterator: Iterator {
+pub trait ResettableIterator: Iterator {
     fn reset(&mut self);
 }
 
-struct IterBundle<I> {
+pub struct IterBundle<I> {
     iters: Vec<I>,
 }
 
-struct BundledIter<I> {
+pub struct BundledIter<I> {
     iters: Vec<I>,
     offset: i64,
     done: Vec<bool>,
 }
 
-impl<I> IterBundle<I> {
-    fn new() -> Self {
+impl<I> IterBundle<I>
+where
+    I: Iterator,
+{
+    pub fn new() -> Self {
         IterBundle::<I> { iters: Vec::new() }
     }
 
-    fn push(&mut self, iter: I) {
-        self.iters.push(iter);
+    pub fn push<T>(&mut self, iter: T)
+    where
+        T: IntoIterator<Item = I::Item, IntoIter = I>,
+    {
+        self.iters.push(iter.into_iter());
     }
 }
 
