@@ -88,24 +88,24 @@ where
 {
     type Output = Self;
 
-    fn add(self, rhs: N) -> Self {
+    fn add(self, rhs: N) -> Self::Output {
         let n = bytes_to_u64(&self.bytes);
         let bytes = u64_to_bytes(n + rhs.into() & MAC_MAX);
         MacAddr { bytes }
     }
 }
 
-impl Sub<MacAddr> for MacAddr {
-    type Output = i64;
+impl<N> Sub<N> for MacAddr
+where
+    N: Into<u64>,
+{
+    type Output = Self;
 
-    fn sub(self, rhs: MacAddr) -> Self::Output {
-        let n1 = bytes_to_u64(&self.bytes);
-        let n2 = bytes_to_u64(&rhs.bytes);
-        if n1 > n2 {
-            (n1 - n2) as i64
-        } else {
-            -((n2 - n1) as i64)
-        }
+    fn sub(self, rhs: N) -> Self::Output {
+        let n = bytes_to_u64(&self.bytes);
+        let (sub, _) = n.overflowing_sub(rhs.into());
+        let bytes = u64_to_bytes(sub & MAC_MAX);
+        MacAddr { bytes }
     }
 }
 
@@ -128,7 +128,6 @@ fn u64_to_bytes(n: u64) -> [u8; 6] {
 #[cfg(test)]
 mod tests {
     use super::MacAddr;
-    use crate::macaddr::MAC_MAX;
     use std::convert::TryFrom;
 
     #[test]
@@ -169,16 +168,14 @@ mod tests {
 
     #[test]
     fn mac_addr_sub() {
-        let mac0 = MacAddr::new(0, 0, 0, 0, 0, 0);
-        let mac1 = MacAddr::new(1, 1, 1, 1, 1, 1);
-        let mac1num = 1103823438081;
-        let mac2 = MacAddr::new(0xff, 0xff, 0xff, 0xff, 0xff, 0xff);
+        let mac1 = MacAddr::new(0, 1, 2, 3, 4, 5);
+        assert_eq!(format!("{}", mac1 - 1u8), "00:01:02:03:04:04");
 
-        assert_eq!(mac1 - mac1, 0);
-        assert_eq!(mac1 - mac0, mac1num);
-        assert_eq!(mac0 - mac1, -mac1num);
-        assert_eq!(mac2 - mac0, MAC_MAX as i64);
-        assert_eq!(mac0 - mac2, -(MAC_MAX as i64));
+        let mac2 = MacAddr::new(9, 10, 11, 12, 13, 14);
+        assert_eq!(format!("{}", mac2 - 0x010101010101u64), "08:09:0a:0b:0c:0d");
+
+        let mac3 = MacAddr::new(0, 0, 0, 0, 0, 0);
+        assert_eq!(format!("{}", mac3 - 1u8), "ff:ff:ff:ff:ff:ff"); // underflow
     }
 
     #[test]

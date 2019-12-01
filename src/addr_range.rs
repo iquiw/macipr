@@ -1,5 +1,5 @@
 use std::convert::TryFrom;
-use std::ops::{Add, Range};
+use std::ops::{Add, Range, Sub};
 
 use crate::bundled_iter::{IterBundle, ResettableIterator};
 
@@ -7,6 +7,15 @@ use crate::bundled_iter::{IterBundle, ResettableIterator};
 pub struct AddrRange<T> {
     pub start: T,
     pub end: T,
+}
+
+impl<T> AddrRange<T>
+where
+    T: Ord,
+{
+    fn is_ascending(&self) -> bool {
+        self.start <= self.end
+    }
 }
 
 impl<T> From<Range<T>> for AddrRange<T> {
@@ -50,7 +59,7 @@ pub struct AddrRangeIter<T> {
 
 impl<T> IntoIterator for AddrRange<T>
 where
-    T: Copy + Ord + Add<u64, Output = T>,
+    T: Copy + Ord + Add<u64, Output = T> + Sub<u64, Output = T>,
 {
     type Item = T;
     type IntoIter = AddrRangeIter<T>;
@@ -65,24 +74,31 @@ where
 
 impl<T> Iterator for AddrRangeIter<T>
 where
-    T: Copy + Ord + Add<u64, Output = T>,
+    T: Copy + Ord + Add<u64, Output = T> + Sub<u64, Output = T>,
 {
     type Item = T;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let n = self.range.start + self.offset;
-        self.offset += 1;
-        if n <= self.range.end {
-            Some(n)
+        let mut result = None;
+        if self.range.is_ascending() {
+            let n = self.range.start + self.offset;
+            if n <= self.range.end {
+                result = Some(n);
+            }
         } else {
-            None
+            let n = self.range.start - self.offset;
+            if n >= self.range.end {
+                result = Some(n);
+            }
         }
+        self.offset += 1;
+        return result;
     }
 }
 
 impl<T> ResettableIterator for AddrRangeIter<T>
 where
-    T: Copy + Ord + Add<u64, Output = T>,
+    T: Copy + Ord + Add<u64, Output = T> + Sub<u64, Output = T>,
 {
     fn reset(&mut self) {
         self.offset = 0;
@@ -150,6 +166,26 @@ mod tests {
             Err(())
         );
         assert_eq!(AddrRange::<MacAddr>::try_from("0-1-2"), Err(()));
+    }
+
+    #[test]
+    fn addr_range_iter_ascending() {
+        let range = AddrRange::<MacAddr>::try_from("10-12").unwrap();
+        let mut iter = range.into_iter();
+        assert_eq!(iter.next(), Some(MacAddr::new(0, 0, 0, 0, 0, 10)));
+        assert_eq!(iter.next(), Some(MacAddr::new(0, 0, 0, 0, 0, 11)));
+        assert_eq!(iter.next(), Some(MacAddr::new(0, 0, 0, 0, 0, 12)));
+        assert_eq!(iter.next(), None);
+    }
+
+    #[test]
+    fn addr_range_iter_descending() {
+        let range = AddrRange::<MacAddr>::try_from("12-10").unwrap();
+        let mut iter = range.into_iter();
+        assert_eq!(iter.next(), Some(MacAddr::new(0, 0, 0, 0, 0, 12)));
+        assert_eq!(iter.next(), Some(MacAddr::new(0, 0, 0, 0, 0, 11)));
+        assert_eq!(iter.next(), Some(MacAddr::new(0, 0, 0, 0, 0, 10)));
+        assert_eq!(iter.next(), None);
     }
 
     #[test]
