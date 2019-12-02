@@ -57,8 +57,7 @@ impl TryFrom<&str> for MacAddr {
     fn try_from(value: &str) -> Result<Self, Self::Error> {
         if let Ok(n) = u64::from_str_radix(value, 10) {
             if n <= MAC_MAX {
-                let bytes = u64_to_bytes(n);
-                return Ok(MacAddr { bytes });
+                return Ok(MacAddr::from(n));
             }
         }
         if value.len() != 17 {
@@ -89,9 +88,8 @@ where
     type Output = Self;
 
     fn add(self, rhs: N) -> Self::Output {
-        let n = bytes_to_u64(&self.bytes);
-        let bytes = u64_to_bytes(n + rhs.into() & MAC_MAX);
-        MacAddr { bytes }
+        let n: u64 = self.into();
+        MacAddr::from(n + rhs.into() & MAC_MAX)
     }
 }
 
@@ -102,27 +100,30 @@ where
     type Output = Self;
 
     fn sub(self, rhs: N) -> Self::Output {
-        let n = bytes_to_u64(&self.bytes);
+        let n: u64 = self.into();
         let (sub, _) = n.overflowing_sub(rhs.into());
-        let bytes = u64_to_bytes(sub & MAC_MAX);
+        MacAddr::from(sub & MAC_MAX)
+    }
+}
+
+impl Into<u64> for MacAddr {
+    fn into(self) -> u64 {
+        let mut n: u64 = 0;
+        for b in &self.bytes {
+            n = (n << 8u64) + *b as u64;
+        }
+        n
+    }
+}
+
+impl From<u64> for MacAddr {
+    fn from(n: u64) -> Self {
+        let mut bytes: [u8; 6] = [0; 6];
+        for i in 0..6 {
+            bytes[i] = (n >> ((5 - i) * 8) & 0xff) as u8;
+        }
         MacAddr { bytes }
     }
-}
-
-fn bytes_to_u64(bytes: &[u8; 6]) -> u64 {
-    let mut n: u64 = 0;
-    for b in bytes {
-        n = (n << 8u64) + *b as u64;
-    }
-    n
-}
-
-fn u64_to_bytes(n: u64) -> [u8; 6] {
-    let mut bytes: [u8; 6] = [0; 6];
-    for i in 0..6 {
-        bytes[i] = (n >> ((5 - i) * 8) & 0xff) as u8;
-    }
-    bytes
 }
 
 #[cfg(test)]
