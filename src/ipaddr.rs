@@ -37,6 +37,9 @@ impl TryFrom<&str> for IPv4Addr {
     type Error = ();
 
     fn try_from(s: &str) -> Result<Self, Self::Error> {
+        if let Ok(n) = u32::from_str_radix(s, 10) {
+            return Ok(IPv4Addr::from(n));
+        }
         Ok(IPv4Addr(Ipv4Addr::from_str(s).map_err(|_| ())?))
     }
 }
@@ -88,6 +91,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::IPv4Addr;
+    use std::convert::TryFrom;
 
     #[test]
     fn ipv4addr_add() {
@@ -116,5 +120,51 @@ mod tests {
             IPv4Addr::new(255, 255, 255, 255) - 1u32,
             IPv4Addr::new(255, 255, 255, 254)
         );
+    }
+
+    #[test]
+    fn ipv4addr_try_from() {
+        assert_eq!(IPv4Addr::try_from("0.0.0.0"), Ok(IPv4Addr::new(0, 0, 0, 0)));
+
+        assert_eq!(
+            IPv4Addr::try_from("192.168.10.1"),
+            Ok(IPv4Addr::new(192, 168, 10, 1))
+        );
+
+        assert_eq!(
+            IPv4Addr::try_from("255.255.255.255"),
+            Ok(IPv4Addr::new(255, 255, 255, 255))
+        );
+    }
+
+    #[test]
+    fn ipv4addr_try_from_number() {
+        assert_eq!(IPv4Addr::try_from("0"), Ok(IPv4Addr::new(0, 0, 0, 0)));
+
+        assert_eq!(
+            IPv4Addr::try_from("100000"),
+            Ok(IPv4Addr::new(0, 0x01, 0x86, 0xa0))
+        );
+
+        assert_eq!(
+            IPv4Addr::try_from("4294967295"), // 0xffffffff
+            Ok(IPv4Addr::new(255, 255, 255, 255))
+        );
+    }
+
+    #[test]
+    fn ipv4addr_try_from_err() {
+        assert_eq!(IPv4Addr::try_from("192.168.0."), Err(()));
+
+        assert_eq!(IPv4Addr::try_from("10.0.0.256"), Err(()));
+
+        assert_eq!(IPv4Addr::try_from("172.a.0.1"), Err(()));
+
+        assert_eq!(
+            IPv4Addr::try_from("4294967296"), // 0xffffffff + 1
+            Err(())
+        );
+
+        assert_eq!(IPv4Addr::try_from("192168000001"), Err(()));
     }
 }
