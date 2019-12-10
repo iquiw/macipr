@@ -1,5 +1,6 @@
 use std::cmp::Ordering;
 use std::convert::TryFrom;
+use std::fmt::{self, Display};
 use std::net::Ipv4Addr;
 use std::ops::{Add, Sub};
 use std::str::FromStr;
@@ -8,8 +9,15 @@ use std::str::FromStr;
 pub struct IPv4Addr(Ipv4Addr);
 
 impl IPv4Addr {
+    #[cfg(test)]
     pub fn new(b1: u8, b2: u8, b3: u8, b4: u8) -> Self {
         IPv4Addr(Ipv4Addr::new(b1, b2, b3, b4))
+    }
+}
+
+impl Display for IPv4Addr {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
     }
 }
 
@@ -42,6 +50,12 @@ impl From<u32> for IPv4Addr {
 impl Into<u32> for IPv4Addr {
     fn into(self) -> u32 {
         self.0.into()
+    }
+}
+
+impl Into<u64> for IPv4Addr {
+    fn into(self) -> u64 {
+        Into::<u32>::into(self.0) as u64
     }
 }
 

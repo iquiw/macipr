@@ -1,4 +1,5 @@
 use std::convert::TryFrom;
+use std::ops::AddAssign;
 use std::ops::{Add, Range, Sub};
 
 use crate::bundled_iter::{IterBundle, ResettableIterator};
@@ -9,12 +10,22 @@ pub struct AddrRange<T> {
     pub end: T,
 }
 
-impl<T> AddrRange<T>
-where
-    T: Ord,
-{
-    fn is_ascending(&self) -> bool {
+impl<T> AddrRange<T> {
+    fn is_ascending(&self) -> bool
+    where
+        T: Ord,
+    {
         self.start <= self.end
+    }
+
+    pub fn into_range<S>(self) -> AddrRange<S>
+    where
+        T: Into<S>,
+    {
+        AddrRange {
+            start: self.start.into(),
+            end: self.end.into(),
+        }
     }
 }
 
@@ -52,14 +63,30 @@ where
     }
 }
 
-pub struct AddrRangeIter<T> {
+pub trait Rangeable:
+    Copy
+    + Ord
+    + Add<<Self as Rangeable>::Int, Output = Self>
+    + Sub<<Self as Rangeable>::Int, Output = Self>
+{
+    type Int: Copy + Into<u64> + From<u32> + AddAssign;
+}
+
+impl Rangeable for u64 {
+    type Int = u64;
+}
+
+pub struct AddrRangeIter<T>
+where
+    T: Rangeable,
+{
     range: AddrRange<T>,
-    offset: u64,
+    offset: T::Int,
 }
 
 impl<T> IntoIterator for AddrRange<T>
 where
-    T: Copy + Ord + Add<u64, Output = T> + Sub<u64, Output = T>,
+    T: Rangeable,
 {
     type Item = T;
     type IntoIter = AddrRangeIter<T>;
@@ -67,14 +94,14 @@ where
     fn into_iter(self) -> Self::IntoIter {
         AddrRangeIter {
             range: self,
-            offset: 0,
+            offset: 0.into(),
         }
     }
 }
 
 impl<T> Iterator for AddrRangeIter<T>
 where
-    T: Copy + Ord + Add<u64, Output = T> + Sub<u64, Output = T>,
+    T: Rangeable,
 {
     type Item = T;
 
@@ -91,17 +118,17 @@ where
                 result = Some(n);
             }
         }
-        self.offset += 1;
+        self.offset += 1.into();
         return result;
     }
 }
 
 impl<T> ResettableIterator for AddrRangeIter<T>
 where
-    T: Copy + Ord + Add<u64, Output = T> + Sub<u64, Output = T>,
+    T: Rangeable,
 {
     fn reset(&mut self) {
-        self.offset = 0;
+        self.offset = 0.into();
     }
 }
 
@@ -110,6 +137,7 @@ pub type AddrRanges<T> = IterBundle<AddrRangeIter<T>>;
 #[cfg(test)]
 mod tests {
     use super::{AddrRange, AddrRanges};
+    use crate::ipaddr::IPv4Addr;
     use crate::macaddr::MacAddr;
     use std::convert::TryFrom;
 
@@ -169,93 +197,60 @@ mod tests {
     }
 
     #[test]
+    fn addr_range_try_from_with_ipv4() {
+        assert_eq!(
+            AddrRange::<IPv4Addr>::try_from("192.168.0.1-192.168.0.10"),
+            Ok(AddrRange {
+                start: IPv4Addr::new(192, 168, 0, 1),
+                end: IPv4Addr::new(192, 168, 0, 10)
+            })
+        );
+    }
+
+    #[test]
     fn addr_range_iter_ascending() {
         let range = AddrRange::<MacAddr>::try_from("10-12").unwrap();
-        let mut iter = range.into_iter();
-        assert_eq!(iter.next(), Some(MacAddr::new(0, 0, 0, 0, 0, 10)));
-        assert_eq!(iter.next(), Some(MacAddr::new(0, 0, 0, 0, 0, 11)));
-        assert_eq!(iter.next(), Some(MacAddr::new(0, 0, 0, 0, 0, 12)));
+        let mut iter = range.into_range::<u64>().into_iter();
+        assert_eq!(iter.next(), Some(10));
+        assert_eq!(iter.next(), Some(11));
+        assert_eq!(iter.next(), Some(12));
         assert_eq!(iter.next(), None);
     }
 
     #[test]
     fn addr_range_iter_descending() {
         let range = AddrRange::<MacAddr>::try_from("12-10").unwrap();
-        let mut iter = range.into_iter();
-        assert_eq!(iter.next(), Some(MacAddr::new(0, 0, 0, 0, 0, 12)));
-        assert_eq!(iter.next(), Some(MacAddr::new(0, 0, 0, 0, 0, 11)));
-        assert_eq!(iter.next(), Some(MacAddr::new(0, 0, 0, 0, 0, 10)));
+        let mut iter = range.into_range::<u64>().into_iter();
+        assert_eq!(iter.next(), Some(12));
+        assert_eq!(iter.next(), Some(11));
+        assert_eq!(iter.next(), Some(10));
         assert_eq!(iter.next(), None);
     }
 
     #[test]
     fn addr_range_ranges_iter_one_element() {
         let range = AddrRange::<MacAddr>::try_from("1-3").unwrap();
-        let mut ranges = AddrRanges::<MacAddr>::new();
-        ranges.push(range);
+        let mut ranges = AddrRanges::<u64>::new();
+        ranges.push(range.into_range());
         let mut ranges_iter = ranges.into_iter();
-        assert_eq!(
-            ranges_iter.next(),
-            Some(vec![MacAddr::new(0, 0, 0, 0, 0, 1)])
-        );
-        assert_eq!(
-            ranges_iter.next(),
-            Some(vec![MacAddr::new(0, 0, 0, 0, 0, 2)])
-        );
-        assert_eq!(
-            ranges_iter.next(),
-            Some(vec![MacAddr::new(0, 0, 0, 0, 0, 3)])
-        );
+        assert_eq!(ranges_iter.next(), Some(vec![1]));
+        assert_eq!(ranges_iter.next(), Some(vec![2]));
+        assert_eq!(ranges_iter.next(), Some(vec![3]));
         assert_eq!(ranges_iter.next(), None);
     }
 
     #[test]
     fn addr_range_ranges_iter_3_elements() {
-        let mut ranges = AddrRanges::<MacAddr>::new();
-        ranges.push(AddrRange::<MacAddr>::try_from("1-3").unwrap());
-        ranges.push(AddrRange::<MacAddr>::try_from("2-6").unwrap());
-        ranges.push(AddrRange::<MacAddr>::try_from("7-7").unwrap());
+        let mut ranges = AddrRanges::<u64>::new();
+        ranges.push(AddrRange::<MacAddr>::try_from("1-3").unwrap().into_range());
+        ranges.push(AddrRange::<MacAddr>::try_from("2-6").unwrap().into_range());
+        ranges.push(AddrRange::<MacAddr>::try_from("7-7").unwrap().into_range());
         let mut ranges_iter = ranges.into_iter();
-        assert_eq!(
-            ranges_iter.next(),
-            Some(vec![
-                MacAddr::new(0, 0, 0, 0, 0, 1),
-                MacAddr::new(0, 0, 0, 0, 0, 2),
-                MacAddr::new(0, 0, 0, 0, 0, 7),
-            ])
-        );
-        assert_eq!(
-            ranges_iter.next(),
-            Some(vec![
-                MacAddr::new(0, 0, 0, 0, 0, 2),
-                MacAddr::new(0, 0, 0, 0, 0, 3),
-                MacAddr::new(0, 0, 0, 0, 0, 7),
-            ])
-        );
-        assert_eq!(
-            ranges_iter.next(),
-            Some(vec![
-                MacAddr::new(0, 0, 0, 0, 0, 3),
-                MacAddr::new(0, 0, 0, 0, 0, 4),
-                MacAddr::new(0, 0, 0, 0, 0, 7),
-            ])
-        );
-        assert_eq!(
-            ranges_iter.next(),
-            Some(vec![
-                MacAddr::new(0, 0, 0, 0, 0, 1),
-                MacAddr::new(0, 0, 0, 0, 0, 5),
-                MacAddr::new(0, 0, 0, 0, 0, 7),
-            ])
-        );
-        assert_eq!(
-            ranges_iter.next(),
-            Some(vec![
-                MacAddr::new(0, 0, 0, 0, 0, 2),
-                MacAddr::new(0, 0, 0, 0, 0, 6),
-                MacAddr::new(0, 0, 0, 0, 0, 7),
-            ])
-        );
+        assert_eq!(ranges_iter.next(), Some(vec![1, 2, 7,]));
+        assert_eq!(ranges_iter.next(), Some(vec![2, 3, 7,]));
+        assert_eq!(ranges_iter.next(), Some(vec![3, 4, 7,]));
+        assert_eq!(ranges_iter.next(), Some(vec![1, 5, 7,]));
+        assert_eq!(ranges_iter.next(), Some(vec![2, 6, 7,]));
         assert_eq!(ranges_iter.next(), None);
     }
 }

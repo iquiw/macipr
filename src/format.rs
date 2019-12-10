@@ -1,3 +1,4 @@
+use crate::ipaddr::IPv4Addr;
 use std::convert::TryFrom;
 use std::error::Error;
 use std::fmt::{self, Display};
@@ -8,6 +9,7 @@ use crate::macaddr::MacAddr;
 
 #[derive(Debug, PartialEq)]
 pub enum Format {
+    IPv4Addr,
     MacAddr,
     RawString(String),
 }
@@ -39,18 +41,28 @@ pub fn format_macipr<W>(
 where
     W: Write,
 {
-    let mut ranges = AddrRanges::<MacAddr>::new();
+    let mut ranges = AddrRanges::<u64>::new();
     let mut offset = 0;
     let fmts = parse_format(fmt_str)?;
     for fmt in &fmts {
-        if *fmt == Format::MacAddr {
+        if *fmt == Format::IPv4Addr || *fmt == Format::MacAddr {
             if let Some(s) = args.get(offset) {
-                if let Ok(range) = AddrRange::<MacAddr>::try_from(s.as_ref()) {
-                    ranges.push(range);
+                if *fmt == Format::IPv4Addr {
+                    if let Ok(range) = AddrRange::<IPv4Addr>::try_from(s.as_ref()) {
+                        ranges.push(range.into_range());
+                    } else {
+                        return Err(FormatError {
+                            msg: "Invalid IPv4 address".to_string(),
+                        });
+                    }
                 } else {
-                    return Err(FormatError {
-                        msg: "Invalid MAC address".to_string(),
-                    });
+                    if let Ok(range) = AddrRange::<MacAddr>::try_from(s.as_ref()) {
+                        ranges.push(range.into_range());
+                    } else {
+                        return Err(FormatError {
+                            msg: "Invalid MAC address".to_string(),
+                        });
+                    }
                 }
             } else {
                 return Err(FormatError {
@@ -70,7 +82,10 @@ where
         for fmt in &fmts {
             match fmt {
                 Format::RawString(s) => write!(writer, "{}", s),
-                Format::MacAddr => write!(writer, "{}", iter.next().unwrap()),
+                Format::MacAddr => write!(writer, "{}", MacAddr::from(*iter.next().unwrap())),
+                Format::IPv4Addr => {
+                    write!(writer, "{}", IPv4Addr::from(*iter.next().unwrap() as u32))
+                }
             }
             .map_err(|e| FormatError {
                 msg: format!("{}", e),
@@ -90,19 +105,21 @@ fn parse_format(fmt_str: &str) -> Result<Vec<Format>, FormatError> {
     for c in fmt_str.chars() {
         if state == FormatState::Percent {
             state = FormatState::Normal;
-            match c {
-                '%' => buf.push('%'),
-                'm' => {
-                    if !buf.is_empty() {
-                        fmts.push(Format::RawString(buf));
-                        buf = String::new();
-                    }
-                    fmts.push(Format::MacAddr);
+            if c == '%' {
+                buf.push('%');
+            } else {
+                if !buf.is_empty() {
+                    fmts.push(Format::RawString(buf));
+                    buf = String::new();
                 }
-                _ => {
-                    return Err(FormatError {
-                        msg: "Unexpected character after %".to_string(),
-                    });
+                match c {
+                    'i' => fmts.push(Format::IPv4Addr),
+                    'm' => fmts.push(Format::MacAddr),
+                    _ => {
+                        return Err(FormatError {
+                            msg: "Unexpected character after %".to_string(),
+                        });
+                    }
                 }
             }
         } else {
