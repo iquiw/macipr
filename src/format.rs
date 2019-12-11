@@ -1,8 +1,8 @@
 use crate::ipaddr::IPv4Addr;
-use std::convert::TryFrom;
 use std::error::Error;
 use std::fmt::{self, Display};
 use std::io::Write;
+use std::str::FromStr;
 
 use crate::addr_range::{AddrRange, AddrRanges};
 use crate::macaddr::MacAddr;
@@ -48,7 +48,7 @@ where
         if *fmt == Format::IPv4Addr || *fmt == Format::MacAddr {
             if let Some(s) = args.get(offset) {
                 if *fmt == Format::IPv4Addr {
-                    if let Ok(range) = AddrRange::<IPv4Addr>::try_from(s.as_ref()) {
+                    if let Ok(range) = AddrRange::<IPv4Addr>::from_str(s.as_ref()) {
                         ranges.push(range.into_range());
                     } else {
                         return Err(FormatError {
@@ -56,7 +56,7 @@ where
                         });
                     }
                 } else {
-                    if let Ok(range) = AddrRange::<MacAddr>::try_from(s.as_ref()) {
+                    if let Ok(range) = AddrRange::<MacAddr>::from_str(s.as_ref()) {
                         ranges.push(range.into_range());
                     } else {
                         return Err(FormatError {

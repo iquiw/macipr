@@ -1,7 +1,7 @@
 use std::cmp::Ordering;
-use std::convert::TryFrom;
 use std::fmt::{self, Display};
 use std::ops::{Add, Sub};
+use std::str::FromStr;
 
 const MAC_MAX: u64 = 0xffffffffffffu64;
 
@@ -51,10 +51,10 @@ impl PartialOrd for MacAddr {
     }
 }
 
-impl TryFrom<&str> for MacAddr {
-    type Error = ();
+impl FromStr for MacAddr {
+    type Err = ();
 
-    fn try_from(value: &str) -> Result<Self, Self::Error> {
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
         if let Ok(n) = u64::from_str_radix(value, 10) {
             if n <= MAC_MAX {
                 return Ok(MacAddr::from(n));
@@ -129,7 +129,7 @@ impl From<u64> for MacAddr {
 #[cfg(test)]
 mod tests {
     use super::MacAddr;
-    use std::convert::TryFrom;
+    use std::str::FromStr;
 
     #[test]
     fn mac_addr_display() {
@@ -180,46 +180,46 @@ mod tests {
     }
 
     #[test]
-    fn mac_addr_try_from() {
+    fn mac_addr_from_str() {
         assert_eq!(
-            MacAddr::try_from("00:11:22:33:44:55"),
+            MacAddr::from_str("00:11:22:33:44:55"),
             Ok(MacAddr::new(0, 0x11, 0x22, 0x33, 0x44, 0x55))
         );
 
         assert_eq!(
-            MacAddr::try_from("aa:bb:cc:dd:ee:ff"),
+            MacAddr::from_str("aa:bb:cc:dd:ee:ff"),
             Ok(MacAddr::new(0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff))
         );
     }
 
     #[test]
-    fn mac_addr_try_from_number() {
-        assert_eq!(MacAddr::try_from("0"), Ok(MacAddr::new(0, 0, 0, 0, 0, 0)));
+    fn mac_addr_from_str_number() {
+        assert_eq!(MacAddr::from_str("0"), Ok(MacAddr::new(0, 0, 0, 0, 0, 0)));
 
         assert_eq!(
-            MacAddr::try_from("100000"),
+            MacAddr::from_str("100000"),
             Ok(MacAddr::new(0, 0, 0, 0x01, 0x86, 0xa0))
         );
 
         assert_eq!(
-            MacAddr::try_from("281474976710655"), // 0xffffffffffff
+            MacAddr::from_str("281474976710655"), // 0xffffffffffff
             Ok(MacAddr::new(0xff, 0xff, 0xff, 0xff, 0xff, 0xff))
         );
     }
 
     #[test]
-    fn mac_addr_try_from_err() {
-        assert_eq!(MacAddr::try_from("00:11:22:33:44:5"), Err(()));
+    fn mac_addr_from_str_err() {
+        assert_eq!(MacAddr::from_str("00:11:22:33:44:5"), Err(()));
 
-        assert_eq!(MacAddr::try_from("aa:bb:cc:dd:ee:0ff"), Err(()));
+        assert_eq!(MacAddr::from_str("aa:bb:cc:dd:ee:0ff"), Err(()));
 
-        assert_eq!(MacAddr::try_from("aa:bb:cc:dd:ee:fg"), Err(()));
+        assert_eq!(MacAddr::from_str("aa:bb:cc:dd:ee:fg"), Err(()));
 
         assert_eq!(
-            MacAddr::try_from("281474976710656"), // 0xffffffffffff + 1
+            MacAddr::from_str("281474976710656"), // 0xffffffffffff + 1
             Err(())
         );
 
-        assert_eq!(MacAddr::try_from("aabbccddeeff"), Err(()));
+        assert_eq!(MacAddr::from_str("aabbccddeeff"), Err(()));
     }
 }

@@ -1,4 +1,4 @@
-use std::convert::TryFrom;
+use std::str::FromStr;
 use std::ops::AddAssign;
 use std::ops::{Add, Range, Sub};
 
@@ -38,25 +38,25 @@ impl<T> From<Range<T>> for AddrRange<T> {
     }
 }
 
-impl<'a, T> TryFrom<&'a str> for AddrRange<T>
+impl<T> FromStr for AddrRange<T>
 where
-    T: Copy + TryFrom<&'a str>,
+    T: Copy + FromStr,
 {
-    type Error = ();
+    type Err = ();
 
-    fn try_from(value: &'a str) -> Result<Self, Self::Error> {
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
         if let Some(i) = value.find("-") {
             if i < value.len() {
                 let s1 = &value[0..i];
                 let s2 = &value[i + 1..];
                 if let Ok((start, end)) =
-                    T::try_from(s1).and_then(|mac1| T::try_from(s2).map(|mac2| (mac1, mac2)))
+                    T::from_str(s1).and_then(|mac1| T::from_str(s2).map(|mac2| (mac1, mac2)))
                 {
                     return Ok(AddrRange { start, end });
                 }
             }
         } else {
-            let start = T::try_from(value).map_err(|_| ())?;
+            let start = T::from_str(value).map_err(|_| ())?;
             return Ok(AddrRange { start, end: start });
         }
         Err(())
@@ -139,12 +139,12 @@ mod tests {
     use super::{AddrRange, AddrRanges};
     use crate::ipaddr::IPv4Addr;
     use crate::macaddr::MacAddr;
-    use std::convert::TryFrom;
+    use std::str::FromStr;
 
     #[test]
-    fn addr_range_try_from_with_2macs() {
+    fn addr_range_from_str_with_2macs() {
         assert_eq!(
-            AddrRange::<MacAddr>::try_from("00:00:00:00:00:00-00:00:00:00:00:10"),
+            AddrRange::<MacAddr>::from_str("00:00:00:00:00:00-00:00:00:00:00:10"),
             Ok(AddrRange {
                 start: MacAddr::new(0, 0, 0, 0, 0, 0),
                 end: MacAddr::new(0, 0, 0, 0, 0, 0x10)
@@ -152,7 +152,7 @@ mod tests {
         );
 
         assert_eq!(
-            AddrRange::<MacAddr>::try_from("10-20"),
+            AddrRange::<MacAddr>::from_str("10-20"),
             Ok(AddrRange {
                 start: MacAddr::new(0, 0, 0, 0, 0, 0x0a),
                 end: MacAddr::new(0, 0, 0, 0, 0, 0x14)
@@ -160,7 +160,7 @@ mod tests {
         );
 
         assert_eq!(
-            AddrRange::<MacAddr>::try_from("100-11:22:33:44:55:66"),
+            AddrRange::<MacAddr>::from_str("100-11:22:33:44:55:66"),
             Ok(AddrRange {
                 start: MacAddr::new(0, 0, 0, 0, 0, 0x64),
                 end: MacAddr::new(0x11, 0x22, 0x33, 0x44, 0x55, 0x66)
@@ -169,9 +169,9 @@ mod tests {
     }
 
     #[test]
-    fn addr_range_try_from_with_mac_only() {
+    fn addr_range_from_str_with_mac_only() {
         assert_eq!(
-            AddrRange::<MacAddr>::try_from("aa:bb:cc:dd:ee:ff"),
+            AddrRange::<MacAddr>::from_str("aa:bb:cc:dd:ee:ff"),
             Ok(AddrRange {
                 start: MacAddr::new(0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff),
                 end: MacAddr::new(0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff),
@@ -179,7 +179,7 @@ mod tests {
         );
 
         assert_eq!(
-            AddrRange::<MacAddr>::try_from("16"),
+            AddrRange::<MacAddr>::from_str("16"),
             Ok(AddrRange {
                 start: MacAddr::new(0, 0, 0, 0, 0, 0x010),
                 end: MacAddr::new(0, 0, 0, 0, 0, 0x010),
@@ -188,18 +188,18 @@ mod tests {
     }
 
     #[test]
-    fn addr_range_try_from_err() {
+    fn addr_range_from_str_err() {
         assert_eq!(
-            AddrRange::<MacAddr>::try_from("00:11:22:33:44:55-"),
+            AddrRange::<MacAddr>::from_str("00:11:22:33:44:55-"),
             Err(())
         );
-        assert_eq!(AddrRange::<MacAddr>::try_from("0-1-2"), Err(()));
+        assert_eq!(AddrRange::<MacAddr>::from_str("0-1-2"), Err(()));
     }
 
     #[test]
-    fn addr_range_try_from_with_ipv4() {
+    fn addr_range_from_str_with_ipv4() {
         assert_eq!(
-            AddrRange::<IPv4Addr>::try_from("192.168.0.1-192.168.0.10"),
+            AddrRange::<IPv4Addr>::from_str("192.168.0.1-192.168.0.10"),
             Ok(AddrRange {
                 start: IPv4Addr::new(192, 168, 0, 1),
                 end: IPv4Addr::new(192, 168, 0, 10)
@@ -209,7 +209,7 @@ mod tests {
 
     #[test]
     fn addr_range_iter_ascending() {
-        let range = AddrRange::<MacAddr>::try_from("10-12").unwrap();
+        let range = AddrRange::<MacAddr>::from_str("10-12").unwrap();
         let mut iter = range.into_range::<u64>().into_iter();
         assert_eq!(iter.next(), Some(10));
         assert_eq!(iter.next(), Some(11));
@@ -219,7 +219,7 @@ mod tests {
 
     #[test]
     fn addr_range_iter_descending() {
-        let range = AddrRange::<MacAddr>::try_from("12-10").unwrap();
+        let range = AddrRange::<MacAddr>::from_str("12-10").unwrap();
         let mut iter = range.into_range::<u64>().into_iter();
         assert_eq!(iter.next(), Some(12));
         assert_eq!(iter.next(), Some(11));
@@ -229,7 +229,7 @@ mod tests {
 
     #[test]
     fn addr_range_ranges_iter_one_element() {
-        let range = AddrRange::<MacAddr>::try_from("1-3").unwrap();
+        let range = AddrRange::<MacAddr>::from_str("1-3").unwrap();
         let mut ranges = AddrRanges::<u64>::new();
         ranges.push(range.into_range());
         let mut ranges_iter = ranges.into_iter();
@@ -242,9 +242,9 @@ mod tests {
     #[test]
     fn addr_range_ranges_iter_3_elements() {
         let mut ranges = AddrRanges::<u64>::new();
-        ranges.push(AddrRange::<MacAddr>::try_from("1-3").unwrap().into_range());
-        ranges.push(AddrRange::<MacAddr>::try_from("2-6").unwrap().into_range());
-        ranges.push(AddrRange::<MacAddr>::try_from("7-7").unwrap().into_range());
+        ranges.push(AddrRange::<MacAddr>::from_str("1-3").unwrap().into_range());
+        ranges.push(AddrRange::<MacAddr>::from_str("2-6").unwrap().into_range());
+        ranges.push(AddrRange::<MacAddr>::from_str("7-7").unwrap().into_range());
         let mut ranges_iter = ranges.into_iter();
         assert_eq!(ranges_iter.next(), Some(vec![1, 2, 7,]));
         assert_eq!(ranges_iter.next(), Some(vec![2, 3, 7,]));

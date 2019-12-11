@@ -1,5 +1,4 @@
 use std::cmp::Ordering;
-use std::convert::TryFrom;
 use std::fmt::{self, Display};
 use std::net::Ipv4Addr;
 use std::ops::{Add, Sub};
@@ -33,10 +32,10 @@ impl PartialOrd for IPv4Addr {
     }
 }
 
-impl TryFrom<&str> for IPv4Addr {
-    type Error = ();
+impl FromStr for IPv4Addr {
+    type Err = ();
 
-    fn try_from(s: &str) -> Result<Self, Self::Error> {
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
         if let Ok(n) = u32::from_str_radix(s, 10) {
             return Ok(IPv4Addr::from(n));
         }
@@ -91,7 +90,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::IPv4Addr;
-    use std::convert::TryFrom;
+    use std::str::FromStr;
 
     #[test]
     fn ipv4addr_add() {
@@ -123,48 +122,48 @@ mod tests {
     }
 
     #[test]
-    fn ipv4addr_try_from() {
-        assert_eq!(IPv4Addr::try_from("0.0.0.0"), Ok(IPv4Addr::new(0, 0, 0, 0)));
+    fn ipv4addr_from_str() {
+        assert_eq!(IPv4Addr::from_str("0.0.0.0"), Ok(IPv4Addr::new(0, 0, 0, 0)));
 
         assert_eq!(
-            IPv4Addr::try_from("192.168.10.1"),
+            IPv4Addr::from_str("192.168.10.1"),
             Ok(IPv4Addr::new(192, 168, 10, 1))
         );
 
         assert_eq!(
-            IPv4Addr::try_from("255.255.255.255"),
+            IPv4Addr::from_str("255.255.255.255"),
             Ok(IPv4Addr::new(255, 255, 255, 255))
         );
     }
 
     #[test]
-    fn ipv4addr_try_from_number() {
-        assert_eq!(IPv4Addr::try_from("0"), Ok(IPv4Addr::new(0, 0, 0, 0)));
+    fn ipv4addr_from_str_number() {
+        assert_eq!(IPv4Addr::from_str("0"), Ok(IPv4Addr::new(0, 0, 0, 0)));
 
         assert_eq!(
-            IPv4Addr::try_from("100000"),
+            IPv4Addr::from_str("100000"),
             Ok(IPv4Addr::new(0, 0x01, 0x86, 0xa0))
         );
 
         assert_eq!(
-            IPv4Addr::try_from("4294967295"), // 0xffffffff
+            IPv4Addr::from_str("4294967295"), // 0xffffffff
             Ok(IPv4Addr::new(255, 255, 255, 255))
         );
     }
 
     #[test]
-    fn ipv4addr_try_from_err() {
-        assert_eq!(IPv4Addr::try_from("192.168.0."), Err(()));
+    fn ipv4addr_from_str_err() {
+        assert_eq!(IPv4Addr::from_str("192.168.0."), Err(()));
 
-        assert_eq!(IPv4Addr::try_from("10.0.0.256"), Err(()));
+        assert_eq!(IPv4Addr::from_str("10.0.0.256"), Err(()));
 
-        assert_eq!(IPv4Addr::try_from("172.a.0.1"), Err(()));
+        assert_eq!(IPv4Addr::from_str("172.a.0.1"), Err(()));
 
         assert_eq!(
-            IPv4Addr::try_from("4294967296"), // 0xffffffff + 1
+            IPv4Addr::from_str("4294967296"), // 0xffffffff + 1
             Err(())
         );
 
-        assert_eq!(IPv4Addr::try_from("192168000001"), Err(()));
+        assert_eq!(IPv4Addr::from_str("192168000001"), Err(()));
     }
 }
