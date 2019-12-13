@@ -77,6 +77,13 @@ where
             msg: "Unexpected argument".to_string(),
         });
     }
+    if offset == 0 {
+        if let Format::RawString(s) = &fmts[0] {
+            return Ok(write!(writer, "{}\n", s).map_err(|e| FormatError {
+                msg: format!("{}", e),
+            })?);
+        }
+    }
     for v in ranges {
         let mut iter = v.iter();
         for fmt in &fmts {
@@ -181,6 +188,12 @@ mod tests {
         let mut v = vec![];
         format_macipr(&mut v, fmt_str, args)?;
         Ok(String::from_utf8_lossy(&v).to_string())
+    }
+
+    #[test]
+    fn format_macaddr_empty_arg() {
+        let args = vec![];
+        assert_eq!(fmt_macipr_str("foo", &args), Ok("foo\n".to_string()));
     }
 
     #[test]
