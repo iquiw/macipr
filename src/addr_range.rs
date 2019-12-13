@@ -1,6 +1,8 @@
-use std::str::FromStr;
+use crate::ipaddr::IPv4Addr;
+use crate::macaddr::MacAddr;
 use std::ops::AddAssign;
 use std::ops::{Add, Range, Sub};
+use std::str::FromStr;
 
 use crate::bundled_iter::{IterBundle, ResettableIterator};
 
@@ -40,20 +42,25 @@ impl<T> From<Range<T>> for AddrRange<T> {
 
 impl<T> FromStr for AddrRange<T>
 where
-    T: Copy + FromStr,
+    T: Copy + FromStr + Rangeable,
 {
     type Err = ();
 
     fn from_str(value: &str) -> Result<Self, Self::Err> {
         if let Some(i) = value.find("-") {
             if i < value.len() {
-                let s1 = &value[0..i];
-                let s2 = &value[i + 1..];
-                if let Ok((start, end)) =
-                    T::from_str(s1).and_then(|mac1| T::from_str(s2).map(|mac2| (mac1, mac2)))
-                {
-                    return Ok(AddrRange { start, end });
-                }
+                let start = T::from_str(&value[0..i]).map_err(|_| ())?;
+                let end = T::from_str(&value[i + 1..]).map_err(|_| ())?;
+                return Ok(AddrRange { start, end });
+            }
+        } else if let Some(i) = value.find("+") {
+            if i < value.len() {
+                let start = T::from_str(&value[0..i]).map_err(|_| ())?;
+                let add = <T as Rangeable>::Int::from_str(&value[i + 1..]).map_err(|_| ())?;
+                return Ok(AddrRange {
+                    start,
+                    end: start + add,
+                });
             }
         } else {
             let start = T::from_str(value).map_err(|_| ())?;
@@ -69,11 +76,19 @@ pub trait Rangeable:
     + Add<<Self as Rangeable>::Int, Output = Self>
     + Sub<<Self as Rangeable>::Int, Output = Self>
 {
-    type Int: Copy + Into<u64> + From<u32> + AddAssign;
+    type Int: Copy + Into<u64> + From<u32> + AddAssign + FromStr;
 }
 
 impl Rangeable for u64 {
     type Int = u64;
+}
+
+impl Rangeable for MacAddr {
+    type Int = u64;
+}
+
+impl Rangeable for IPv4Addr {
+    type Int = u32;
 }
 
 pub struct AddrRangeIter<T>
@@ -204,6 +219,25 @@ mod tests {
                 start: IPv4Addr::new(192, 168, 0, 1),
                 end: IPv4Addr::new(192, 168, 0, 10)
             })
+        );
+    }
+
+    #[test]
+    fn addr_range_from_str_with_plus() {
+        assert_eq!(
+            AddrRange::<IPv4Addr>::from_str("192.168.0.1+10"),
+            Ok(AddrRange {
+                start: IPv4Addr::new(192, 168, 0, 1),
+                end: IPv4Addr::new(192, 168, 0, 11)
+            })
+        );
+    }
+
+    #[test]
+    fn addr_range_from_str_with_plus_err() {
+        assert_eq!(
+            AddrRange::<IPv4Addr>::from_str("192.168.0.1+192.168.0.10"),
+            Err(())
         );
     }
 
