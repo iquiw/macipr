@@ -12,9 +12,16 @@ Print MAC address, IPv4 address and its ranges according to format specifier.
 | `i`              | IPv4 address         |
 | `%`              | `%` character itself |
 
-### Argument
+### Escape
 
-#### MAC address
+| Escaped string | Translation          |
+| ---            | ---                  |
+| `\n`           | Newline character    |
+| `\\`           | `\` character itself |
+
+## Argument
+
+### MAC address
 
 MAC address can be specified as colon separated HEX string or just a number.
 
@@ -26,7 +33,7 @@ $ macipr %m 0
 00:00:00:00:00:00
 ```
 
-#### IPv4 address
+### IPv4 address
 
 IPv4 address can be specified as dot separated digits or just a number.
 
@@ -38,7 +45,7 @@ $ macipr %i 180000000
 10.186.149.0
 ```
 
-#### Multiple addresses
+### Multiple addresses
 
 ```console
 $ macipr "%m, %i" 0 192.168.0.1

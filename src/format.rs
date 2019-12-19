@@ -18,6 +18,7 @@ pub enum Format {
 enum FormatState {
     Normal,
     Percent,
+    Escape,
 }
 
 #[derive(Debug, PartialEq)]
@@ -129,9 +130,23 @@ fn parse_format(fmt_str: &str) -> Result<Vec<Format>, FormatError> {
                     }
                 }
             }
+        } else if state == FormatState::Escape {
+            state = FormatState::Normal;
+            match c {
+                '\\' => buf.push('\\'),
+                'n' => buf.push('\n'),
+                _ => {
+                    return Err(FormatError {
+                        msg: "Unexpected character after \\".to_string(),
+                    })
+                }
+            }
         } else {
             if c == '%' {
                 state = FormatState::Percent;
+                continue;
+            } else if c == '\\' {
+                state = FormatState::Escape;
                 continue;
             }
             buf.push(c);
@@ -175,11 +190,39 @@ mod tests {
     }
 
     #[test]
+    fn parse_format_escape() {
+        assert_eq!(
+            parse_format("\\n"),
+            Ok(vec![Format::RawString("\n".to_string())])
+        );
+        assert_eq!(
+            parse_format("\\\\"),
+            Ok(vec![Format::RawString("\\".to_string())])
+        );
+        assert_eq!(
+            parse_format("\\\\%m\\n%i\\\\foo"),
+            Ok(vec![
+                Format::RawString("\\".to_string()),
+                Format::MacAddr,
+                Format::RawString("\n".to_string()),
+                Format::IPv4Addr,
+                Format::RawString("\\foo".to_string()),
+            ])
+        );
+    }
+
+    #[test]
     fn parse_format_error() {
         assert_eq!(
             parse_format("%k"),
             Err(FormatError {
                 msg: "Unexpected character after %".to_string()
+            })
+        );
+        assert_eq!(
+            parse_format("\\r"),
+            Err(FormatError {
+                msg: "Unexpected character after \\".to_string()
             })
         );
     }
