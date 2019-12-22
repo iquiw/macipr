@@ -47,20 +47,21 @@ where
     type Err = ();
 
     fn from_str(value: &str) -> Result<Self, Self::Err> {
-        if let Some(i) = value.find("-") {
+        if let Some(i) = value.find("+") {
+            if i < value.len() {
+                let start = T::from_str(&value[0..i]).map_err(|_| ())?;
+                let end = if &value[i + 1..i + 2] == "-" {
+                    start - <T as Rangeable>::Int::from_str(&value[i + 2..]).map_err(|_| ())?
+                } else {
+                    start + <T as Rangeable>::Int::from_str(&value[i + 1..]).map_err(|_| ())?
+                };
+                return Ok(AddrRange { start, end });
+            }
+        } else if let Some(i) = value.find("-") {
             if i < value.len() {
                 let start = T::from_str(&value[0..i]).map_err(|_| ())?;
                 let end = T::from_str(&value[i + 1..]).map_err(|_| ())?;
                 return Ok(AddrRange { start, end });
-            }
-        } else if let Some(i) = value.find("+") {
-            if i < value.len() {
-                let start = T::from_str(&value[0..i]).map_err(|_| ())?;
-                let add = <T as Rangeable>::Int::from_str(&value[i + 1..]).map_err(|_| ())?;
-                return Ok(AddrRange {
-                    start,
-                    end: start + add,
-                });
             }
         } else {
             let start = T::from_str(value).map_err(|_| ())?;
@@ -229,6 +230,17 @@ mod tests {
             Ok(AddrRange {
                 start: IPv4Addr::new(192, 168, 0, 1),
                 end: IPv4Addr::new(192, 168, 0, 11)
+            })
+        );
+    }
+
+    #[test]
+    fn addr_range_from_str_with_plus_descending() {
+        assert_eq!(
+            AddrRange::<IPv4Addr>::from_str("192.168.0.10+-9"),
+            Ok(AddrRange {
+                start: IPv4Addr::new(192, 168, 0, 10),
+                end: IPv4Addr::new(192, 168, 0, 1)
             })
         );
     }

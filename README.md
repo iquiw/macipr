@@ -78,7 +78,7 @@ $ macipr %i 192.168.1.1-192.168.0.254
 ### Offset range
 
 This type of range specifies start address and offset from it with plus (`+`) separator.
-Offset should be a number.
+Offset should be a number. If offset is prefixed by minus `-`, it represents a negative number.
 
 ```console
 $ macipr %m 01:02:03:04:05:06+3
@@ -93,6 +93,12 @@ $ macipr %i 172.16.0.1+4
 172.16.0.3
 172.16.0.4
 172.16.0.5
+
+$ macipr %i 10+-9
+0.0.0.10
+0.0.0.9
+0.0.0.8
+0.0.0.7
 ```
 
 ### Multiple ranges
