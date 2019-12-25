@@ -4,6 +4,7 @@ use std::fmt::{self, Display};
 use std::io::Write;
 use std::str::FromStr;
 
+use crate::addr::Addr;
 use crate::addr_range::{AddrRange, AddrRanges};
 use crate::macaddr::MacAddr;
 
@@ -42,7 +43,7 @@ pub fn format_macipr<W>(
 where
     W: Write,
 {
-    let mut ranges = AddrRanges::<u64>::new();
+    let mut ranges = AddrRanges::<Addr>::new();
     let mut offset = 0;
     let fmts = parse_format(fmt_str)?;
     for fmt in &fmts {
@@ -90,10 +91,7 @@ where
         for fmt in &fmts {
             match fmt {
                 Format::RawString(s) => write!(writer, "{}", s),
-                Format::MacAddr => write!(writer, "{}", MacAddr::from(*iter.next().unwrap())),
-                Format::IPv4Addr => {
-                    write!(writer, "{}", IPv4Addr::from(*iter.next().unwrap() as u32))
-                }
+                _ => write!(writer, "{}", iter.next().unwrap()),
             }
             .map_err(|e| FormatError {
                 msg: format!("{}", e),

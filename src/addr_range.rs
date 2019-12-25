@@ -1,10 +1,11 @@
-use crate::ipaddr::IPv4Addr;
-use crate::macaddr::MacAddr;
 use std::ops::AddAssign;
 use std::ops::{Add, Range, Sub};
 use std::str::FromStr;
 
+use crate::addr::Addr;
 use crate::bundled_iter::{IterBundle, ResettableIterator};
+use crate::ipaddr::IPv4Addr;
+use crate::macaddr::MacAddr;
 
 #[derive(Debug, PartialEq)]
 pub struct AddrRange<T> {
@@ -15,7 +16,7 @@ pub struct AddrRange<T> {
 impl<T> AddrRange<T> {
     fn is_ascending(&self) -> bool
     where
-        T: Ord,
+        T: PartialOrd,
     {
         self.start <= self.end
     }
@@ -73,15 +74,11 @@ where
 
 pub trait Rangeable:
     Copy
-    + Ord
+    + PartialOrd
     + Add<<Self as Rangeable>::Int, Output = Self>
     + Sub<<Self as Rangeable>::Int, Output = Self>
 {
     type Int: Copy + Into<u64> + From<u32> + AddAssign + FromStr;
-}
-
-impl Rangeable for u64 {
-    type Int = u64;
 }
 
 impl Rangeable for MacAddr {
@@ -90,6 +87,10 @@ impl Rangeable for MacAddr {
 
 impl Rangeable for IPv4Addr {
     type Int = u32;
+}
+
+impl Rangeable for Addr {
+    type Int = u64;
 }
 
 pub struct AddrRangeIter<T>
@@ -256,47 +257,82 @@ mod tests {
     #[test]
     fn addr_range_iter_ascending() {
         let range = AddrRange::<MacAddr>::from_str("10-12").unwrap();
-        let mut iter = range.into_range::<u64>().into_iter();
-        assert_eq!(iter.next(), Some(10));
-        assert_eq!(iter.next(), Some(11));
-        assert_eq!(iter.next(), Some(12));
+        let mut iter = range.into_iter();
+        assert_eq!(iter.next(), Some(MacAddr::new(0, 0, 0, 0, 0, 10)));
+        assert_eq!(iter.next(), Some(MacAddr::new(0, 0, 0, 0, 0, 11)));
+        assert_eq!(iter.next(), Some(MacAddr::new(0, 0, 0, 0, 0, 12)));
         assert_eq!(iter.next(), None);
     }
 
     #[test]
     fn addr_range_iter_descending() {
         let range = AddrRange::<MacAddr>::from_str("12-10").unwrap();
-        let mut iter = range.into_range::<u64>().into_iter();
-        assert_eq!(iter.next(), Some(12));
-        assert_eq!(iter.next(), Some(11));
-        assert_eq!(iter.next(), Some(10));
+        let mut iter = range.into_iter();
+        assert_eq!(iter.next(), Some(MacAddr::new(0, 0, 0, 0, 0, 12)));
+        assert_eq!(iter.next(), Some(MacAddr::new(0, 0, 0, 0, 0, 11)));
+        assert_eq!(iter.next(), Some(MacAddr::new(0, 0, 0, 0, 0, 10)));
         assert_eq!(iter.next(), None);
     }
 
     #[test]
     fn addr_range_ranges_iter_one_element() {
-        let range = AddrRange::<MacAddr>::from_str("1-3").unwrap();
-        let mut ranges = AddrRanges::<u64>::new();
+        let range = AddrRange::<IPv4Addr>::from_str("1-3").unwrap();
+        let mut ranges = AddrRanges::<IPv4Addr>::new();
         ranges.push(range.into_range());
         let mut ranges_iter = ranges.into_iter();
-        assert_eq!(ranges_iter.next(), Some(vec![1]));
-        assert_eq!(ranges_iter.next(), Some(vec![2]));
-        assert_eq!(ranges_iter.next(), Some(vec![3]));
+        assert_eq!(ranges_iter.next(), Some(vec![IPv4Addr::new(0, 0, 0, 1)]));
+        assert_eq!(ranges_iter.next(), Some(vec![IPv4Addr::new(0, 0, 0, 2)]));
+        assert_eq!(ranges_iter.next(), Some(vec![IPv4Addr::new(0, 0, 0, 3)]));
         assert_eq!(ranges_iter.next(), None);
     }
 
     #[test]
     fn addr_range_ranges_iter_3_elements() {
-        let mut ranges = AddrRanges::<u64>::new();
-        ranges.push(AddrRange::<MacAddr>::from_str("1-3").unwrap().into_range());
-        ranges.push(AddrRange::<MacAddr>::from_str("2-6").unwrap().into_range());
-        ranges.push(AddrRange::<MacAddr>::from_str("7-7").unwrap().into_range());
+        let mut ranges = AddrRanges::<IPv4Addr>::new();
+        ranges.push(AddrRange::<IPv4Addr>::from_str("1-3").unwrap());
+        ranges.push(AddrRange::<IPv4Addr>::from_str("2-6").unwrap());
+        ranges.push(AddrRange::<IPv4Addr>::from_str("7-7").unwrap());
         let mut ranges_iter = ranges.into_iter();
-        assert_eq!(ranges_iter.next(), Some(vec![1, 2, 7,]));
-        assert_eq!(ranges_iter.next(), Some(vec![2, 3, 7,]));
-        assert_eq!(ranges_iter.next(), Some(vec![3, 4, 7,]));
-        assert_eq!(ranges_iter.next(), Some(vec![1, 5, 7,]));
-        assert_eq!(ranges_iter.next(), Some(vec![2, 6, 7,]));
+        assert_eq!(
+            ranges_iter.next(),
+            Some(vec![
+                IPv4Addr::new(0, 0, 0, 1),
+                IPv4Addr::new(0, 0, 0, 2),
+                IPv4Addr::new(0, 0, 0, 7),
+            ])
+        );
+        assert_eq!(
+            ranges_iter.next(),
+            Some(vec![
+                IPv4Addr::new(0, 0, 0, 2),
+                IPv4Addr::new(0, 0, 0, 3),
+                IPv4Addr::new(0, 0, 0, 7),
+            ])
+        );
+        assert_eq!(
+            ranges_iter.next(),
+            Some(vec![
+                IPv4Addr::new(0, 0, 0, 3),
+                IPv4Addr::new(0, 0, 0, 4),
+                IPv4Addr::new(0, 0, 0, 7),
+            ])
+        );
+        assert_eq!(
+            ranges_iter.next(),
+            Some(vec![
+                IPv4Addr::new(0, 0, 0, 1),
+                IPv4Addr::new(0, 0, 0, 5),
+                IPv4Addr::new(0, 0, 0, 7),
+            ])
+        );
+        assert_eq!(
+            ranges_iter.next(),
+            Some(vec![
+                IPv4Addr::new(0, 0, 0, 2),
+                IPv4Addr::new(0, 0, 0, 6),
+                IPv4Addr::new(0, 0, 0, 7),
+            ])
+        );
         assert_eq!(ranges_iter.next(), None);
     }
 }
