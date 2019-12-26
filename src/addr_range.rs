@@ -1,5 +1,5 @@
 use std::ops::AddAssign;
-use std::ops::{Add, Range, Sub};
+use std::ops::{Add, Sub};
 use std::str::FromStr;
 
 use crate::addr::Addr;
@@ -9,16 +9,41 @@ use crate::macaddr::MacAddr;
 
 #[derive(Debug, PartialEq)]
 pub struct AddrRange<T> {
-    pub start: T,
-    pub end: T,
+    start: T,
+    end: T,
+    overflow: bool,
 }
 
 impl<T> AddrRange<T> {
+    fn new(start: T, end: T) -> Self {
+        AddrRange {
+            start,
+            end,
+            overflow: false,
+        }
+    }
     fn is_ascending(&self) -> bool
     where
         T: PartialOrd,
     {
-        self.start <= self.end
+        if self.overflow {
+            true
+        } else {
+            self.start <= self.end
+        }
+    }
+
+    fn within(&self, value: T) -> bool
+    where
+        T: PartialOrd,
+    {
+        if self.overflow {
+            value >= self.start || value <= self.end
+        } else if self.start <= self.end {
+            value >= self.start && value <= self.end
+        } else {
+            value <= self.start && value >= self.end
+        }
     }
 
     pub fn into_range<S>(self) -> AddrRange<S>
@@ -28,15 +53,7 @@ impl<T> AddrRange<T> {
         AddrRange {
             start: self.start.into(),
             end: self.end.into(),
-        }
-    }
-}
-
-impl<T> From<Range<T>> for AddrRange<T> {
-    fn from(range: Range<T>) -> Self {
-        AddrRange {
-            start: range.start,
-            end: range.end,
+            overflow: self.overflow,
         }
     }
 }
@@ -51,22 +68,27 @@ where
         if let Some(i) = value.find("+") {
             if i < value.len() {
                 let start = T::from_str(&value[0..i]).map_err(|_| ())?;
-                let end = if &value[i + 1..i + 2] == "-" {
+                let negative = &value[i + 1..i + 2] == "-";
+                let end = if negative {
                     start - <T as Rangeable>::Int::from_str(&value[i + 2..]).map_err(|_| ())?
                 } else {
                     start + <T as Rangeable>::Int::from_str(&value[i + 1..]).map_err(|_| ())?
                 };
-                return Ok(AddrRange { start, end });
+                return Ok(AddrRange {
+                    start,
+                    end,
+                    overflow: !negative && start > end,
+                });
             }
         } else if let Some(i) = value.find("-") {
             if i < value.len() {
                 let start = T::from_str(&value[0..i]).map_err(|_| ())?;
                 let end = T::from_str(&value[i + 1..]).map_err(|_| ())?;
-                return Ok(AddrRange { start, end });
+                return Ok(AddrRange::new(start, end));
             }
         } else {
             let start = T::from_str(value).map_err(|_| ())?;
-            return Ok(AddrRange { start, end: start });
+            return Ok(AddrRange::new(start, start));
         }
         Err(())
     }
@@ -124,16 +146,13 @@ where
 
     fn next(&mut self) -> Option<Self::Item> {
         let mut result = None;
-        if self.range.is_ascending() {
-            let n = self.range.start + self.offset;
-            if n <= self.range.end {
-                result = Some(n);
-            }
+        let n = if self.range.is_ascending() {
+            self.range.start + self.offset
         } else {
-            let n = self.range.start - self.offset;
-            if n >= self.range.end {
-                result = Some(n);
-            }
+            self.range.start - self.offset
+        };
+        if self.range.within(n) {
+            result = Some(n);
         }
         self.offset += 1.into();
         return result;
@@ -162,26 +181,26 @@ mod tests {
     fn addr_range_from_str_with_2macs() {
         assert_eq!(
             AddrRange::<MacAddr>::from_str("00:00:00:00:00:00-00:00:00:00:00:10"),
-            Ok(AddrRange {
-                start: MacAddr::new(0, 0, 0, 0, 0, 0),
-                end: MacAddr::new(0, 0, 0, 0, 0, 0x10)
-            })
+            Ok(AddrRange::new(
+                MacAddr::new(0, 0, 0, 0, 0, 0),
+                MacAddr::new(0, 0, 0, 0, 0, 0x10)
+            ))
         );
 
         assert_eq!(
             AddrRange::<MacAddr>::from_str("10-20"),
-            Ok(AddrRange {
-                start: MacAddr::new(0, 0, 0, 0, 0, 0x0a),
-                end: MacAddr::new(0, 0, 0, 0, 0, 0x14)
-            })
+            Ok(AddrRange::new(
+                MacAddr::new(0, 0, 0, 0, 0, 0x0a),
+                MacAddr::new(0, 0, 0, 0, 0, 0x14)
+            ))
         );
 
         assert_eq!(
             AddrRange::<MacAddr>::from_str("100-11:22:33:44:55:66"),
-            Ok(AddrRange {
-                start: MacAddr::new(0, 0, 0, 0, 0, 0x64),
-                end: MacAddr::new(0x11, 0x22, 0x33, 0x44, 0x55, 0x66)
-            })
+            Ok(AddrRange::new(
+                MacAddr::new(0, 0, 0, 0, 0, 0x64),
+                MacAddr::new(0x11, 0x22, 0x33, 0x44, 0x55, 0x66)
+            ))
         );
     }
 
@@ -189,18 +208,18 @@ mod tests {
     fn addr_range_from_str_with_mac_only() {
         assert_eq!(
             AddrRange::<MacAddr>::from_str("aa:bb:cc:dd:ee:ff"),
-            Ok(AddrRange {
-                start: MacAddr::new(0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff),
-                end: MacAddr::new(0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff),
-            })
+            Ok(AddrRange::new(
+                MacAddr::new(0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff),
+                MacAddr::new(0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff),
+            ))
         );
 
         assert_eq!(
             AddrRange::<MacAddr>::from_str("16"),
-            Ok(AddrRange {
-                start: MacAddr::new(0, 0, 0, 0, 0, 0x010),
-                end: MacAddr::new(0, 0, 0, 0, 0, 0x010),
-            })
+            Ok(AddrRange::new(
+                MacAddr::new(0, 0, 0, 0, 0, 0x010),
+                MacAddr::new(0, 0, 0, 0, 0, 0x010),
+            ))
         );
     }
 
@@ -217,10 +236,10 @@ mod tests {
     fn addr_range_from_str_with_ipv4() {
         assert_eq!(
             AddrRange::<IPv4Addr>::from_str("192.168.0.1-192.168.0.10"),
-            Ok(AddrRange {
-                start: IPv4Addr::new(192, 168, 0, 1),
-                end: IPv4Addr::new(192, 168, 0, 10)
-            })
+            Ok(AddrRange::new(
+                IPv4Addr::new(192, 168, 0, 1),
+                IPv4Addr::new(192, 168, 0, 10)
+            ))
         );
     }
 
@@ -228,10 +247,10 @@ mod tests {
     fn addr_range_from_str_with_plus() {
         assert_eq!(
             AddrRange::<IPv4Addr>::from_str("192.168.0.1+10"),
-            Ok(AddrRange {
-                start: IPv4Addr::new(192, 168, 0, 1),
-                end: IPv4Addr::new(192, 168, 0, 11)
-            })
+            Ok(AddrRange::new(
+                IPv4Addr::new(192, 168, 0, 1),
+                IPv4Addr::new(192, 168, 0, 11)
+            ))
         );
     }
 
@@ -239,10 +258,10 @@ mod tests {
     fn addr_range_from_str_with_plus_descending() {
         assert_eq!(
             AddrRange::<IPv4Addr>::from_str("192.168.0.10+-9"),
-            Ok(AddrRange {
-                start: IPv4Addr::new(192, 168, 0, 10),
-                end: IPv4Addr::new(192, 168, 0, 1)
-            })
+            Ok(AddrRange::new(
+                IPv4Addr::new(192, 168, 0, 10),
+                IPv4Addr::new(192, 168, 0, 1)
+            ))
         );
     }
 
@@ -271,6 +290,17 @@ mod tests {
         assert_eq!(iter.next(), Some(MacAddr::new(0, 0, 0, 0, 0, 12)));
         assert_eq!(iter.next(), Some(MacAddr::new(0, 0, 0, 0, 0, 11)));
         assert_eq!(iter.next(), Some(MacAddr::new(0, 0, 0, 0, 0, 10)));
+        assert_eq!(iter.next(), None);
+    }
+
+    #[test]
+    fn addr_range_iter_overflow() {
+        let range = AddrRange::<IPv4Addr>::from_str("255.255.255.254+3").unwrap();
+        let mut iter = range.into_iter();
+        assert_eq!(iter.next(), Some(IPv4Addr::new(255, 255, 255, 254)));
+        assert_eq!(iter.next(), Some(IPv4Addr::new(255, 255, 255, 255)));
+        assert_eq!(iter.next(), Some(IPv4Addr::new(0, 0, 0, 0)));
+        assert_eq!(iter.next(), Some(IPv4Addr::new(0, 0, 0, 1)));
         assert_eq!(iter.next(), None);
     }
 
