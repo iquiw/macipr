@@ -27,7 +27,7 @@ impl<T> AddrRange<T> {
         T: PartialOrd,
     {
         if self.overflow {
-            true
+            self.start >= self.end
         } else {
             self.start <= self.end
         }
@@ -38,7 +38,11 @@ impl<T> AddrRange<T> {
         T: PartialOrd,
     {
         if self.overflow {
-            value >= self.start || value <= self.end
+            if self.start <= self.end {
+                value <= self.start || value >= self.end
+            } else {
+                value >= self.start || value <= self.end
+            }
         } else if self.start <= self.end {
             value >= self.start && value <= self.end
         } else {
@@ -77,7 +81,7 @@ where
                 return Ok(AddrRange {
                     start,
                     end,
-                    overflow: !negative && start > end,
+                    overflow: if negative { start < end } else { start > end },
                 });
             }
         } else if let Some(i) = value.find("-") {
@@ -301,6 +305,17 @@ mod tests {
         assert_eq!(iter.next(), Some(IPv4Addr::new(255, 255, 255, 255)));
         assert_eq!(iter.next(), Some(IPv4Addr::new(0, 0, 0, 0)));
         assert_eq!(iter.next(), Some(IPv4Addr::new(0, 0, 0, 1)));
+        assert_eq!(iter.next(), None);
+    }
+
+    #[test]
+    fn addr_range_iter_underflow() {
+        let range = AddrRange::<IPv4Addr>::from_str("0.0.0.1+-3").unwrap();
+        let mut iter = range.into_iter();
+        assert_eq!(iter.next(), Some(IPv4Addr::new(0, 0, 0, 1)));
+        assert_eq!(iter.next(), Some(IPv4Addr::new(0, 0, 0, 0)));
+        assert_eq!(iter.next(), Some(IPv4Addr::new(255, 255, 255, 255)));
+        assert_eq!(iter.next(), Some(IPv4Addr::new(255, 255, 255, 254)));
         assert_eq!(iter.next(), None);
     }
 
