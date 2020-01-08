@@ -1,4 +1,4 @@
-use crate::ipaddr::IPv4Addr;
+use crate::ipv4addr::IPv4Addr;
 use std::error::Error;
 use std::fmt::{self, Display};
 use std::io::Write;

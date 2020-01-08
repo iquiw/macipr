@@ -3,7 +3,7 @@ use std::fmt;
 use std::fmt::Display;
 use std::ops::{Add, Sub};
 
-use crate::ipaddr::IPv4Addr;
+use crate::ipv4addr::IPv4Addr;
 use crate::macaddr::MacAddr;
 
 #[derive(PartialEq, Copy, Clone)]

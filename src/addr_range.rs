@@ -4,7 +4,7 @@ use std::str::FromStr;
 
 use crate::addr::Addr;
 use crate::bundled_iter::{IterBundle, ResettableIterator};
-use crate::ipaddr::IPv4Addr;
+use crate::ipv4addr::IPv4Addr;
 use crate::macaddr::MacAddr;
 
 #[derive(Debug, PartialEq)]
@@ -177,7 +177,7 @@ pub type AddrRanges<T> = IterBundle<AddrRangeIter<T>>;
 #[cfg(test)]
 mod tests {
     use super::{AddrRange, AddrRanges};
-    use crate::ipaddr::IPv4Addr;
+    use crate::ipv4addr::IPv4Addr;
     use crate::macaddr::MacAddr;
     use std::str::FromStr;
 
