@@ -5,6 +5,7 @@ use std::str::FromStr;
 use crate::addr::Addr;
 use crate::bundled_iter::{IterBundle, ResettableIterator};
 use crate::ipv4addr::IPv4Addr;
+use crate::ipv6addr::IPv6Addr;
 use crate::macaddr::MacAddr;
 
 #[derive(Debug, PartialEq)]
@@ -104,7 +105,7 @@ pub trait Rangeable:
     + Add<<Self as Rangeable>::Int, Output = Self>
     + Sub<<Self as Rangeable>::Int, Output = Self>
 {
-    type Int: Copy + Into<u64> + From<u32> + AddAssign + FromStr;
+    type Int: Copy + Into<u128> + From<u32> + AddAssign + FromStr;
 }
 
 impl Rangeable for MacAddr {
@@ -113,6 +114,10 @@ impl Rangeable for MacAddr {
 
 impl Rangeable for IPv4Addr {
     type Int = u32;
+}
+
+impl Rangeable for IPv6Addr {
+    type Int = u128;
 }
 
 impl Rangeable for Addr {

@@ -1,4 +1,3 @@
-use crate::ipv4addr::IPv4Addr;
 use std::error::Error;
 use std::fmt::{self, Display};
 use std::io::Write;
@@ -6,13 +5,36 @@ use std::str::FromStr;
 
 use crate::addr::Addr;
 use crate::addr_range::{AddrRange, AddrRanges};
+use crate::ipv4addr::IPv4Addr;
+use crate::ipv6addr::IPv6Addr;
 use crate::macaddr::MacAddr;
 
 #[derive(Debug, PartialEq)]
 pub enum Format {
     IPv4Addr,
+    IPv6Addr,
     MacAddr,
     RawString(String),
+}
+
+impl Format {
+    fn is_arg_required(&self) -> bool {
+        match self {
+            Format::RawString(_) => false,
+            _ => true,
+        }
+    }
+}
+
+impl Display for Format {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Format::IPv4Addr => write!(f, "IPv4 address"),
+            Format::IPv6Addr => write!(f, "IPv6 address"),
+            Format::MacAddr => write!(f, "MAC address"),
+            _ => write!(f, "Raw string"),
+        }
+    }
 }
 
 #[derive(Debug, PartialEq)]
@@ -47,25 +69,19 @@ where
     let mut offset = 0;
     let fmts = parse_format(fmt_str)?;
     for fmt in &fmts {
-        if *fmt == Format::IPv4Addr || *fmt == Format::MacAddr {
+        if fmt.is_arg_required() {
             if let Some(s) = args.get(offset) {
-                if *fmt == Format::IPv4Addr {
-                    if let Ok(range) = AddrRange::<IPv4Addr>::from_str(s.as_ref()) {
-                        ranges.push(range.into_range());
-                    } else {
-                        return Err(FormatError {
-                            msg: "Invalid IPv4 address".to_string(),
-                        });
-                    }
+                let range = if *fmt == Format::IPv4Addr {
+                    AddrRange::<IPv4Addr>::from_str(s.as_ref()).map(|r| r.into_range())
+                } else if *fmt == Format::IPv6Addr {
+                    AddrRange::<IPv6Addr>::from_str(s.as_ref()).map(|r| r.into_range())
                 } else {
-                    if let Ok(range) = AddrRange::<MacAddr>::from_str(s.as_ref()) {
-                        ranges.push(range.into_range());
-                    } else {
-                        return Err(FormatError {
-                            msg: "Invalid MAC address".to_string(),
-                        });
-                    }
+                    AddrRange::<MacAddr>::from_str(s.as_ref()).map(|r| r.into_range())
                 }
+                .map_err(|_| FormatError {
+                    msg: format!("Invalid {}", fmt),
+                })?;
+                ranges.push(range);
             } else {
                 return Err(FormatError {
                     msg: "Insufficient number of arguments".to_string(),
@@ -120,6 +136,7 @@ fn parse_format(fmt_str: &str) -> Result<Vec<Format>, FormatError> {
                 }
                 match c {
                     'i' => fmts.push(Format::IPv4Addr),
+                    'x' => fmts.push(Format::IPv6Addr),
                     'm' => fmts.push(Format::MacAddr),
                     _ => {
                         return Err(FormatError {
@@ -342,6 +359,46 @@ mod tests {
             fmt_macipr_str("This is it", &args),
             Err(FormatError {
                 msg: "Unexpected argument".to_string()
+            })
+        );
+    }
+
+    #[test]
+    fn format_ipv4addr_one_ipv4() {
+        let args = vec!["192.168.0.1".to_string()];
+        assert_eq!(
+            fmt_macipr_str("This is %i", &args),
+            Ok("This is 192.168.0.1\n".to_string())
+        );
+    }
+
+    #[test]
+    fn format_ipv4addr_invalid_ipv4_err() {
+        let args = vec!["192.168.1".to_string()];
+        assert_eq!(
+            fmt_macipr_str("This is %i", &args),
+            Err(FormatError {
+                msg: "Invalid IPv4 address".to_string()
+            })
+        );
+    }
+
+    #[test]
+    fn format_ipv6addr_one_ipv6() {
+        let args = vec!["fe80::0100:0000:0000".to_string()];
+        assert_eq!(
+            fmt_macipr_str("This is %x", &args),
+            Ok("This is fe80::100:0:0\n".to_string())
+        );
+    }
+
+    #[test]
+    fn format_ipv6addr_invalid_ipv6_err() {
+        let args = vec!["fe80::0::0".to_string()];
+        assert_eq!(
+            fmt_macipr_str("This is %x", &args),
+            Err(FormatError {
+                msg: "Invalid IPv6 address".to_string()
             })
         );
     }

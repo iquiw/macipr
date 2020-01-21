@@ -10,6 +10,7 @@ Print MAC address, IPv4 address and its ranges according to format specifier.
 | ---              | ---                  |
 | `m`              | MAC address          |
 | `i`              | IPv4 address         |
+| `x`              | IPv6 address         |
 | `%`              | `%` character itself |
 
 ### Escape
@@ -42,6 +43,18 @@ $ macipr %i 192.168.0.1
 192.168.0.1
 
 $ macipr %i 180000000
+10.186.149.0
+```
+
+### IPv6 address
+
+IPv6 address can be specified as colon separated digits or just a number.
+
+```console
+$ macipr %x 192.168.0.1
+192.168.0.1
+
+$ macipr %x 180000000
 10.186.149.0
 ```
 
