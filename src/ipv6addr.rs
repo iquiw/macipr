@@ -68,9 +68,29 @@ where
     }
 }
 
+pub struct IPv6FullAddr(Ipv6Addr);
+
+impl IPv6FullAddr {
+    pub fn wrap(ipv6: IPv6Addr) -> Self {
+        IPv6FullAddr(ipv6.0)
+    }
+}
+
+impl Display for IPv6FullAddr {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let segs = self.0.segments();
+        write!(
+            f,
+            "{:04x}:{:04x}:{:04x}:{:04x}:{:04x}:{:04x}:{:04x}:{:04x}",
+            segs[0], segs[1], segs[2], segs[3], segs[4], segs[5], segs[6], segs[7],
+        )
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use super::IPv6Addr;
+    use super::{IPv6Addr, IPv6FullAddr};
+    use std::net::Ipv6Addr;
     use std::str::FromStr;
 
     #[test]
@@ -159,5 +179,22 @@ mod tests {
         );
 
         assert_eq!(IPv6Addr::from_str("ff801"), Err(()));
+    }
+
+    #[test]
+    fn ipv6fulladdr_display() {
+        assert_eq!(
+            format!("{}", IPv6FullAddr(Ipv6Addr::new(0, 0, 0, 0, 0, 0, 0, 0))),
+            "0000:0000:0000:0000:0000:0000:0000:0000"
+        );
+        assert_eq!(
+            format!(
+                "{}",
+                IPv6FullAddr(Ipv6Addr::new(
+                    0xffff, 0xfffe, 0xfffd, 0xfffc, 0xfffb, 0xfffa, 0xfff9, 0xfff8
+                ))
+            ),
+            "ffff:fffe:fffd:fffc:fffb:fffa:fff9:fff8"
+        );
     }
 }

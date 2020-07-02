@@ -6,13 +6,14 @@ use std::str::FromStr;
 use crate::addr::Addr;
 use crate::addr_range::{AddrRange, AddrRanges};
 use crate::ipv4addr::IPv4Addr;
-use crate::ipv6addr::IPv6Addr;
+use crate::ipv6addr::{IPv6Addr, IPv6FullAddr};
 use crate::macaddr::MacAddr;
 
 #[derive(Debug, PartialEq)]
 pub enum Format {
     IPv4Addr,
     IPv6Addr,
+    IPv6FullAddr,
     MacAddr,
     RawString(String),
 }
@@ -31,6 +32,7 @@ impl Display for Format {
         match self {
             Format::IPv4Addr => write!(f, "IPv4 address"),
             Format::IPv6Addr => write!(f, "IPv6 address"),
+            Format::IPv6FullAddr => write!(f, "IPv6 full address"),
             Format::MacAddr => write!(f, "MAC address"),
             _ => write!(f, "Raw string"),
         }
@@ -73,7 +75,7 @@ where
             if let Some(s) = args.get(offset) {
                 let range = if *fmt == Format::IPv4Addr {
                     AddrRange::<IPv4Addr>::from_str(s.as_ref()).map(|r| r.into_range())
-                } else if *fmt == Format::IPv6Addr {
+                } else if *fmt == Format::IPv6Addr || *fmt == Format::IPv6FullAddr {
                     AddrRange::<IPv6Addr>::from_str(s.as_ref()).map(|r| r.into_range())
                 } else {
                     AddrRange::<MacAddr>::from_str(s.as_ref()).map(|r| r.into_range())
@@ -107,6 +109,13 @@ where
         for fmt in &fmts {
             match fmt {
                 Format::RawString(s) => write!(writer, "{}", s),
+                Format::IPv6FullAddr => {
+                    if let Addr::IPv6(value) = iter.next().unwrap() {
+                        write!(writer, "{}", IPv6FullAddr::wrap(*value))
+                    } else {
+                        return Err(FormatError { msg: "IPv6 expected".to_string() })
+                    }
+                }
                 _ => write!(writer, "{}", iter.next().unwrap()),
             }
             .map_err(|e| FormatError {
@@ -137,6 +146,7 @@ fn parse_format(fmt_str: &str) -> Result<Vec<Format>, FormatError> {
                 match c {
                     'i' => fmts.push(Format::IPv4Addr),
                     'x' => fmts.push(Format::IPv6Addr),
+                    'X' => fmts.push(Format::IPv6FullAddr),
                     'm' => fmts.push(Format::MacAddr),
                     _ => {
                         return Err(FormatError {
@@ -399,6 +409,26 @@ mod tests {
             fmt_macipr_str("This is %x", &args),
             Err(FormatError {
                 msg: "Invalid IPv6 address".to_string()
+            })
+        );
+    }
+
+    #[test]
+    fn format_ipv6fulladdr_one_ipv6() {
+        let args = vec!["::1".to_string()];
+        assert_eq!(
+            fmt_macipr_str("This is %X", &args),
+            Ok("This is 0000:0000:0000:0000:0000:0000:0000:0001\n".to_string())
+        );
+    }
+
+    #[test]
+    fn format_ipv6fulladdr_invalid_ipv6_err() {
+        let args = vec!["fe80::0::0".to_string()];
+        assert_eq!(
+            fmt_macipr_str("This is %X", &args),
+            Err(FormatError {
+                msg: "Invalid IPv6 full address".to_string()
             })
         );
     }
