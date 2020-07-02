@@ -1,10 +1,9 @@
-use std::cmp::Ordering;
 use std::fmt::{self, Display};
 use std::net::Ipv4Addr;
 use std::ops::{Add, Sub};
 use std::str::FromStr;
 
-#[derive(Debug, PartialEq, Eq, Copy, Clone)]
+#[derive(Debug, PartialEq, Eq, Copy, Clone, PartialOrd, Ord)]
 pub struct IPv4Addr(Ipv4Addr);
 
 impl IPv4Addr {
@@ -17,18 +16,6 @@ impl IPv4Addr {
 impl Display for IPv4Addr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.0)
-    }
-}
-
-impl Ord for IPv4Addr {
-    fn cmp(&self, other: &Self) -> Ordering {
-        self.0.cmp(&other.0)
-    }
-}
-
-impl PartialOrd for IPv4Addr {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
     }
 }
 
