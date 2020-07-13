@@ -215,6 +215,21 @@ mod tests {
     }
 
     #[test]
+    fn parse_format_ipv4addr() {
+        assert_eq!(parse_format("%i"), Ok(vec![Format::IPv4Addr]));
+    }
+
+    #[test]
+    fn parse_format_ipv6addr() {
+        assert_eq!(parse_format("%x"), Ok(vec![Format::IPv6Addr]));
+    }
+
+    #[test]
+    fn parse_format_ipv6fulladdr() {
+        assert_eq!(parse_format("%X"), Ok(vec![Format::IPv6FullAddr]));
+    }
+
+    #[test]
     fn parse_format_escape() {
         assert_eq!(
             parse_format("\\n"),
