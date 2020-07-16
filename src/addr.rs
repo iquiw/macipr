@@ -12,6 +12,7 @@ pub enum Addr {
     IPv4(IPv4Addr),
     IPv6(IPv6Addr),
     Mac(MacAddr),
+    Number(u128),
 }
 
 impl Display for Addr {
@@ -20,6 +21,7 @@ impl Display for Addr {
             Addr::IPv4(value) => write!(f, "{}", value),
             Addr::IPv6(value) => write!(f, "{}", value),
             Addr::Mac(value) => write!(f, "{}", value),
+            Addr::Number(value) => write!(f, "{}", value),
         }
     }
 }
@@ -42,6 +44,12 @@ impl From<MacAddr> for Addr {
     }
 }
 
+impl From<u128> for Addr {
+    fn from(value: u128) -> Self {
+        Addr::Number(value)
+    }
+}
+
 impl PartialOrd for Addr {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         match self {
@@ -57,6 +65,11 @@ impl PartialOrd for Addr {
             }
             Addr::Mac(value) => {
                 if let Addr::Mac(ovalue) = other {
+                    return value.partial_cmp(ovalue);
+                }
+            }
+            Addr::Number(value) => {
+                if let Addr::Number(ovalue) = other {
                     return value.partial_cmp(ovalue);
                 }
             }
@@ -76,6 +89,7 @@ where
             Addr::IPv4(value) => Addr::IPv4(value + rhs.into() as u32),
             Addr::IPv6(value) => Addr::IPv6(value + rhs),
             Addr::Mac(value) => Addr::Mac(value + rhs.into() as u64),
+            Addr::Number(value) => Addr::Number(value + rhs.into()),
         }
     }
 }
@@ -91,6 +105,7 @@ where
             Addr::IPv4(value) => Addr::IPv4(value - rhs.into() as u32),
             Addr::IPv6(value) => Addr::IPv6(value - rhs),
             Addr::Mac(value) => Addr::Mac(value - rhs.into() as u64),
+            Addr::Number(value) => Addr::Number(value - rhs.into()),
         }
     }
 }

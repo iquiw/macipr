@@ -12,6 +12,7 @@ Print MAC address, IPv4/IPv6 address and its ranges according to format specifie
 | `i`              | IPv4 address         |
 | `x`              | IPv6 address         |
 | `X`              | IPv6 full address    |
+| `n`              | Number               |
 | `%`              | `%` character itself |
 
 ### Escape
@@ -67,6 +68,13 @@ $ macipr %X ::1
 
 $ macipr %X 340282366920938463463374607431768211455
 ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff
+```
+
+### Number
+
+```console
+$ macipr %n 12345
+12345
 ```
 
 ### Multiple addresses

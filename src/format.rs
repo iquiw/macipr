@@ -15,6 +15,7 @@ pub enum Format {
     IPv6Addr,
     IPv6FullAddr,
     MacAddr,
+    Number,
     RawString(String),
 }
 
@@ -34,6 +35,7 @@ impl Display for Format {
             Format::IPv6Addr => write!(f, "IPv6 address"),
             Format::IPv6FullAddr => write!(f, "IPv6 full address"),
             Format::MacAddr => write!(f, "MAC address"),
+            Format::Number => write!(f, "Number"),
             _ => write!(f, "Raw string"),
         }
     }
@@ -77,8 +79,10 @@ where
                     AddrRange::<IPv4Addr>::from_str(s.as_ref()).map(|r| r.into_range())
                 } else if *fmt == Format::IPv6Addr || *fmt == Format::IPv6FullAddr {
                     AddrRange::<IPv6Addr>::from_str(s.as_ref()).map(|r| r.into_range())
-                } else {
+                } else if *fmt == Format::MacAddr {
                     AddrRange::<MacAddr>::from_str(s.as_ref()).map(|r| r.into_range())
+                } else {
+                    AddrRange::<u128>::from_str(s.as_ref()).map(|r| r.into_range())
                 }
                 .map_err(|_| FormatError {
                     msg: format!("Invalid {}", fmt),
@@ -148,6 +152,7 @@ fn parse_format(fmt_str: &str) -> Result<Vec<Format>, FormatError> {
                     'x' => fmts.push(Format::IPv6Addr),
                     'X' => fmts.push(Format::IPv6FullAddr),
                     'm' => fmts.push(Format::MacAddr),
+                    'n' => fmts.push(Format::Number),
                     _ => {
                         return Err(FormatError {
                             msg: "Unexpected character after %".to_string(),
@@ -227,6 +232,11 @@ mod tests {
     #[test]
     fn parse_format_ipv6fulladdr() {
         assert_eq!(parse_format("%X"), Ok(vec![Format::IPv6FullAddr]));
+    }
+
+    #[test]
+    fn parse_format_number() {
+        assert_eq!(parse_format("%n"), Ok(vec![Format::Number]));
     }
 
     #[test]
@@ -444,6 +454,26 @@ mod tests {
             fmt_macipr_str("This is %X", &args),
             Err(FormatError {
                 msg: "Invalid IPv6 full address".to_string()
+            })
+        );
+    }
+
+    #[test]
+    fn format_number_one_number() {
+        let args = vec!["12345".to_string()];
+        assert_eq!(
+            fmt_macipr_str("This is %n", &args),
+            Ok("This is 12345\n".to_string())
+        );
+    }
+
+    #[test]
+    fn format_number_invalid_number() {
+        let args = vec!["-10".to_string()];
+        assert_eq!(
+            fmt_macipr_str("This is %n", &args),
+            Err(FormatError {
+                msg: "Invalid Number".to_string()
             })
         );
     }

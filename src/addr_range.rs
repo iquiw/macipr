@@ -124,6 +124,10 @@ impl Rangeable for Addr {
     type Int = u64;
 }
 
+impl Rangeable for u128 {
+    type Int = u128;
+}
+
 pub struct AddrRangeIter<T>
 where
     T: Rangeable,
