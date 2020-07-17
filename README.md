@@ -15,6 +15,10 @@ Print MAC address, IPv4/IPv6 address and its ranges according to format specifie
 | `n`              | Number               |
 | `%`              | `%` character itself |
 
+Number specifier can be prefixed by padding length, such as `%10n`.
+If padding length starts with `0`, `0` is used as padding character.
+Otherwise, space (` `) is sued as padding character.
+
 ### Escape
 
 | Escaped string | Translation          |
@@ -75,6 +79,12 @@ ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff
 ```console
 $ macipr %n 12345
 12345
+
+$ macipr :%5n: 123
+:  123:
+
+$ macipr :%05n: 45
+:00045:
 ```
 
 ### Multiple addresses

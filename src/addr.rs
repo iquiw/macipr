@@ -21,7 +21,7 @@ impl Display for Addr {
             Addr::IPv4(value) => write!(f, "{}", value),
             Addr::IPv6(value) => write!(f, "{}", value),
             Addr::Mac(value) => write!(f, "{}", value),
-            Addr::Number(value) => write!(f, "{}", value),
+            Addr::Number(value) => value.fmt(f),
         }
     }
 }

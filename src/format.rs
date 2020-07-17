@@ -15,7 +15,7 @@ pub enum Format {
     IPv6Addr,
     IPv6FullAddr,
     MacAddr,
-    Number,
+    Number { zero_pad: bool, pad_len: u8 },
     RawString(String),
 }
 
@@ -35,7 +35,7 @@ impl Display for Format {
             Format::IPv6Addr => write!(f, "IPv6 address"),
             Format::IPv6FullAddr => write!(f, "IPv6 full address"),
             Format::MacAddr => write!(f, "MAC address"),
-            Format::Number => write!(f, "Number"),
+            Format::Number { .. } => write!(f, "Number"),
             _ => write!(f, "Raw string"),
         }
     }
@@ -117,7 +117,16 @@ where
                     if let Addr::IPv6(value) = iter.next().unwrap() {
                         write!(writer, "{}", IPv6FullAddr::wrap(*value))
                     } else {
-                        return Err(FormatError { msg: "IPv6 expected".to_string() })
+                        return Err(FormatError {
+                            msg: "IPv6 expected".to_string(),
+                        });
+                    }
+                }
+                Format::Number { zero_pad, pad_len } => {
+                    if *zero_pad {
+                        write!(writer, "{:01$}", iter.next().unwrap(), *pad_len as usize)
+                    } else {
+                        write!(writer, "{:1$}", iter.next().unwrap(), *pad_len as usize)
                     }
                 }
                 _ => write!(writer, "{}", iter.next().unwrap()),
@@ -137,11 +146,15 @@ fn parse_format(fmt_str: &str) -> Result<Vec<Format>, FormatError> {
     let mut fmts = vec![];
     let mut buf = String::new();
     let mut state = FormatState::Normal;
+    let mut zero_pad = false;
+    let mut pad_len = 0;
     for c in fmt_str.chars() {
         if state == FormatState::Percent {
             state = FormatState::Normal;
             if c == '%' {
                 buf.push('%');
+                zero_pad = false;
+                pad_len = 0;
             } else {
                 if !buf.is_empty() {
                     fmts.push(Format::RawString(buf));
@@ -152,7 +165,19 @@ fn parse_format(fmt_str: &str) -> Result<Vec<Format>, FormatError> {
                     'x' => fmts.push(Format::IPv6Addr),
                     'X' => fmts.push(Format::IPv6FullAddr),
                     'm' => fmts.push(Format::MacAddr),
-                    'n' => fmts.push(Format::Number),
+                    'n' => fmts.push(Format::Number { zero_pad, pad_len }),
+                    '0'..='9' => {
+                        state = FormatState::Percent;
+                        if c == '0' && pad_len == 0 {
+                            zero_pad = true;
+                        }
+                        pad_len = pad_len
+                            .checked_mul(10)
+                            .and_then(|n| n.checked_add(c.to_digit(10).unwrap_or(0) as u8))
+                            .ok_or(FormatError {
+                                msg: "Padding length overflow".to_string(),
+                            })?;
+                    }
                     _ => {
                         return Err(FormatError {
                             msg: "Unexpected character after %".to_string(),
@@ -236,7 +261,45 @@ mod tests {
 
     #[test]
     fn parse_format_number() {
-        assert_eq!(parse_format("%n"), Ok(vec![Format::Number]));
+        assert_eq!(
+            parse_format("%n"),
+            Ok(vec![Format::Number {
+                zero_pad: false,
+                pad_len: 0,
+            }])
+        );
+    }
+
+    #[test]
+    fn parse_format_padded_number() {
+        assert_eq!(
+            parse_format("%123n"),
+            Ok(vec![Format::Number {
+                zero_pad: false,
+                pad_len: 123,
+            }])
+        );
+    }
+
+    #[test]
+    fn parse_format_zero_padded_number() {
+        assert_eq!(
+            parse_format("%09n"),
+            Ok(vec![Format::Number {
+                zero_pad: true,
+                pad_len: 9,
+            }])
+        );
+    }
+
+    #[test]
+    fn parse_format_padded_number_overflow() {
+        assert_eq!(
+            parse_format("%256n"),
+            Err(FormatError {
+                msg: "Padding length overflow".to_string()
+            })
+        );
     }
 
     #[test]
@@ -468,6 +531,24 @@ mod tests {
     }
 
     #[test]
+    fn format_number_one_padded_number() {
+        let args = vec!["123".to_string()];
+        assert_eq!(
+            fmt_macipr_str("This is '%5n'", &args),
+            Ok("This is '  123'\n".to_string())
+        );
+    }
+
+   #[test]
+    fn format_number_one_zero_padded_number() {
+        let args = vec!["1".to_string()];
+        assert_eq!(
+            fmt_macipr_str("This is '%05n'", &args),
+            Ok("This is '00001'\n".to_string())
+        );
+    }
+
+     #[test]
     fn format_number_invalid_number() {
         let args = vec!["-10".to_string()];
         assert_eq!(
